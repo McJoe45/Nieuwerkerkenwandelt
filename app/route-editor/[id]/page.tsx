@@ -127,7 +127,7 @@ export default function RouteEditorPage() {
       L.marker([coords[0][0], coords[0][1]], {
         icon: L.divIcon({
           className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-center: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
           iconSize: [30, 30],
           iconAnchor: [15, 15]
         })
@@ -397,16 +397,10 @@ export default function RouteEditorPage() {
       distance: updatedRoute.distance
     })
     
-    // Save to localStorage immediately
+    // Save to localStorage
     updateRoute(updatedRoute)
     
-    // Force a storage event to notify other windows
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'routes',
-      newValue: localStorage.getItem('routes')
-    }))
-    
-    // Notify parent window with more detailed data
+    // Notify parent window with detailed data
     if (window.opener) {
       window.opener.postMessage({
         type: 'ROUTE_UPDATED',
@@ -415,6 +409,16 @@ export default function RouteEditorPage() {
         distance: totalDistance,
         route: updatedRoute
       }, '*')
+      
+      // Also trigger a storage event for the parent window
+      try {
+        window.opener.dispatchEvent(new StorageEvent('storage', {
+          key: 'routes',
+          newValue: localStorage.getItem('routes')
+        }))
+      } catch (e) {
+        console.log('Could not dispatch storage event to parent')
+      }
     }
     
     alert('Route opgeslagen!')

@@ -8,7 +8,7 @@ import L from "leaflet"
 import Link from "next/link"
 import { ExternalLink, Edit } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import { isAuthenticated } from "@/lib/auth"
+import { isAuthenticated, getRouteById } from "@/lib/auth"
 
 // Fix for default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -38,6 +38,7 @@ export default function RouteMap({
   const [isClient, setIsClient] = useState(false)
   const [coordinates, setCoordinates] = useState(initialCoordinates)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [mapKey, setMapKey] = useState(0) // Force re-render
 
   useEffect(() => {
     setIsClient(true)
@@ -53,31 +54,50 @@ export default function RouteMap({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
+        console.log('Received route update message:', event.data)
         setCoordinates(event.data.coordinates)
-        // Force a re-render by updating the key
-        window.location.reload()
+        setMapKey(prev => prev + 1) // Force map re-render
       }
     }
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'routes' && routeId) {
-        // Route was updated, refresh coordinates
-        const routes = JSON.parse(event.newValue || '[]')
-        const updatedRoute = routes.find((r: any) => r.id === routeId)
+        console.log('Storage changed, refreshing route data')
+        // Get fresh route data from storage
+        const updatedRoute = getRouteById(routeId)
         if (updatedRoute && updatedRoute.coordinates) {
           setCoordinates(updatedRoute.coordinates)
+          setMapKey(prev => prev + 1) // Force map re-render
+        }
+      }
+    }
+
+    const handleFocus = () => {
+      // When window regains focus, check for route updates
+      if (routeId) {
+        const updatedRoute = getRouteById(routeId)
+        if (updatedRoute && updatedRoute.coordinates) {
+          const currentCoords = JSON.stringify(coordinates)
+          const newCoords = JSON.stringify(updatedRoute.coordinates)
+          if (currentCoords !== newCoords) {
+            console.log('Route updated while window was not focused')
+            setCoordinates(updatedRoute.coordinates)
+            setMapKey(prev => prev + 1) // Force map re-render
+          }
         }
       }
     }
 
     window.addEventListener('message', handleMessage)
     window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('focus', handleFocus)
 
     return () => {
       window.removeEventListener('message', handleMessage)
       window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('focus', handleFocus)
     }
-  }, [routeId])
+  }, [routeId, coordinates])
 
   if (!isClient) {
     return (
@@ -122,7 +142,7 @@ export default function RouteMap({
         zoom={13}
         className={className}
         style={{ height: "400px", width: "100%" }}
-        key={`map-${routeId}-${coordinates.length}`} // Force re-render when coordinates change
+        key={`map-${routeId}-${mapKey}`} // Force re-render when coordinates change
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
