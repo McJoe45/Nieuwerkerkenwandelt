@@ -27,10 +27,10 @@ INSERT INTO users (username, password_hash)
 VALUES ('admin', '$2b$10$rQZ9QmZ9QmZ9QmZ9QmZ9QO') -- This would be a proper hash in production
 ON CONFLICT (username) DO NOTHING;
 
--- Insert demo routes
+-- Insert demo routes with proper UUIDs
 INSERT INTO routes (id, name, gehuchten, distance, muddy, description, coordinates, difficulty, duration, highlights) VALUES
 (
-  '1',
+  gen_random_uuid(),
   'Dendervallei Wandeling',
   ARRAY['Centrum', 'Bosstraat', 'Molenveld'],
   5.2,
@@ -42,7 +42,7 @@ INSERT INTO routes (id, name, gehuchten, distance, muddy, description, coordinat
   ARRAY['Historische watermolen', 'Dendervallei uitzicht', 'Oude kerk van Nieuwerkerken']
 ),
 (
-  '2',
+  gen_random_uuid(),
   'Bospaden Route',
   ARRAY['Nieuwbos', 'Kapelleberg'],
   3.8,
@@ -54,7 +54,7 @@ INSERT INTO routes (id, name, gehuchten, distance, muddy, description, coordinat
   ARRAY['Eeuwenoude eikenbomen', 'Vogelkijkhut', 'Picknickplaats']
 ),
 (
-  '3',
+  gen_random_uuid(),
   'Heuvelland Tocht',
   ARRAY['Hoogstraat', 'Bergveld', 'Panorama'],
   8.1,
@@ -64,8 +64,7 @@ INSERT INTO routes (id, name, gehuchten, distance, muddy, description, coordinat
   'Moeilijk',
   '2u 30min',
   ARRAY['Hoogste punt van Nieuwerkerken', 'Kasteel ruïne', 'Panoramisch uitzicht', 'Historische kapel']
-)
-ON CONFLICT (id) DO NOTHING;
+);
 
 -- Create updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at_column()
