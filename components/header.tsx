@@ -2,77 +2,117 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { User, LogOut } from 'lucide-react'
-import { Button } from "@/components/ui/button"
+import Image from "next/image"
+import { Menu, X } from 'lucide-react'
 import { isAuthenticated, logout, getCurrentUser } from "@/lib/auth"
 
 export default function Header() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState("")
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
   useEffect(() => {
     setIsLoggedIn(isAuthenticated())
-    setUsername(getCurrentUser())
+    setCurrentUser(getCurrentUser())
   }, [])
 
   const handleLogout = () => {
     logout()
     setIsLoggedIn(false)
-    setUsername("")
-    window.location.reload()
+    setCurrentUser(null)
+    setIsMenuOpen(false)
   }
 
   return (
-    <header className="bg-sage text-white shadow-xl border-b border-sage/30">
-      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex items-center gap-2 sm:gap-4 group transition-all duration-300 hover:scale-105 min-w-0"
-          >
-            <div className="relative flex-shrink-0">
-              <img
-                src="/images/nieuwerkerken-logo.png"
-                alt="Wapen van Nieuwerkerken"
-                className="object-contain transition-all duration-300 group-hover:drop-shadow-lg"
-                style={{ width: "40px", height: "40px" }}
-              />
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-              <span className="text-lg sm:text-2xl font-bold text-cream tracking-wide title-font truncate">
-                Nieuwerkerken
-              </span>
-              <span className="text-lg sm:text-2xl font-bold text-cream tracking-wide title-font flex-shrink-0">
-                wandelt
-              </span>
-            </div>
+    <header className="bg-sage text-white shadow-lg">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link href="/" className="flex items-center space-x-3">
+            <Image
+              src="/images/nieuwerkerken-logo.png"
+              alt="Nieuwerkerken Logo"
+              width={40}
+              height={40}
+              className="rounded-full"
+            />
+            <span className="text-xl font-bold">Nieuwerkerken Wandelt</span>
           </Link>
 
-          <nav className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            {isLoggedIn && (
-              <div className="flex items-center gap-2 sm:gap-4">
-                <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-full bg-sage/30 border border-cream/20">
-                  <div className="w-8 h-8 bg-sage-light rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-cream font-medium">{username}</span>
-                </div>
-                <div className="sm:hidden w-8 h-8 bg-sage-light rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-6">
+            <Link href="/" className="hover:text-sage-lightest transition-colors">
+              Home
+            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link href="/admin" className="hover:text-sage-lightest transition-colors">
+                  Admin
+                </Link>
+                <span className="text-sage-lightest">Welkom, {currentUser}</span>
+                <button
                   onClick={handleLogout}
-                  className="border-cream/30 text-cream hover:bg-sage/20 hover:text-white bg-transparent transition-all duration-300 text-xs sm:text-sm px-2 sm:px-3"
+                  className="hover:text-sage-lightest transition-colors"
                 >
-                  <LogOut className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Uitloggen</span>
-                </Button>
-              </div>
+                  Uitloggen
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="hover:text-sage-lightest transition-colors">
+                Inloggen
+              </Link>
             )}
           </nav>
+
+          {/* Mobile menu button */}
+          <button
+            className="md:hidden"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
+
+        {/* Mobile Navigation */}
+        {isMenuOpen && (
+          <nav className="md:hidden py-4 border-t border-sage-light">
+            <div className="flex flex-col space-y-2">
+              <Link
+                href="/"
+                className="py-2 hover:text-sage-lightest transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
+              </Link>
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href="/admin"
+                    className="py-2 hover:text-sage-lightest transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Admin
+                  </Link>
+                  <span className="py-2 text-sage-lightest">Welkom, {currentUser}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="py-2 text-left hover:text-sage-lightest transition-colors"
+                  >
+                    Uitloggen
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  className="py-2 hover:text-sage-lightest transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Inloggen
+                </Link>
+              )}
+            </div>
+          </nav>
+        )}
       </div>
     </header>
   )
