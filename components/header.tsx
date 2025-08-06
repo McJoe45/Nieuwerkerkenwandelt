@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogIn, LogOut, User } from "lucide-react"
+import { User, LogOut } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { isAuthenticated, logout, getCurrentUser } from "@/lib/auth"
 
@@ -49,7 +49,7 @@ export default function Header() {
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            {isLoggedIn ? (
+            {isLoggedIn && (
               <div className="flex items-center gap-2 sm:gap-4">
                 <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-full bg-sage/30 border border-cream/20">
                   <div className="w-8 h-8 bg-sage-light rounded-full flex items-center justify-center">
@@ -70,12 +70,6 @@ export default function Header() {
                   <span className="hidden sm:inline">Uitloggen</span>
                 </Button>
               </div>
-            ) : (
-              <Link href="/login">
-                <div className="bg-cream rounded-lg p-2 transition-all duration-300 hover:scale-105 shadow-sm">
-                  <LogIn className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />
-                </div>
-              </Link>
             )}
           </nav>
         </div>

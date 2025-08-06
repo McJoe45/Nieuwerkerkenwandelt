@@ -1,0 +1,229 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
+import { Save, Undo, Redo, MapPin, Trash2 } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getRouteById, updateRoute } from "@/lib/auth"
+
+interface Route {
+  id: string
+  name: string
+  gehuchten: string[]
+  distance: number
+  muddy: boolean
+  description: string
+  coordinates: [number, number][]
+  difficulty: string
+  duration: string
+  highlights: string[]
+}
+
+export default function RouteEditorPage() {
+  const params = useParams()
+  const [route, setRoute] = useState<Route | null>(null)
+  const [coordinates, setCoordinates] = useState<[number, number][]>([])
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [totalDistance, setTotalDistance] = useState(0)
+
+  useEffect(() => {
+    const routeData = getRouteById(params.id as string)
+    if (routeData) {
+      setRoute(routeData)
+      setCoordinates(routeData.coordinates)
+    }
+  }, [params.id])
+
+  const calculateDistance = (coords: [number, number][]) => {
+    if (coords.length < 2) return 0
+    
+    let distance = 0
+    for (let i = 1; i < coords.length; i++) {
+      const lat1 = coords[i - 1][0]
+      const lon1 = coords[i - 1][1]
+      const lat2 = coords[i][0]
+      const lon2 = coords[i][1]
+      
+      // Haversine formula for distance calculation
+      const R = 6371 // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180
+      const dLon = (lon2 - lon1) * Math.PI / 180
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+      distance += R * c
+    }
+    return Math.round(distance * 10) / 10 // Round to 1 decimal
+  }
+
+  useEffect(() => {
+    setTotalDistance(calculateDistance(coordinates))
+  }, [coordinates])
+
+  const saveRoute = () => {
+    if (!route) return
+    
+    const updatedRoute = {
+      ...route,
+      coordinates,
+      distance: totalDistance
+    }
+    
+    updateRoute(updatedRoute)
+    alert('Route opgeslagen!')
+  }
+
+  const clearRoute = () => {
+    if (confirm('Weet je zeker dat je de route wilt wissen?')) {
+      setCoordinates([])
+    }
+  }
+
+  const undoLastPoint = () => {
+    if (coordinates.length > 0) {
+      setCoordinates(coordinates.slice(0, -1))
+    }
+  }
+
+  if (!route) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <p className="text-sage-dark text-xl">Route niet gevonden...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-cream">
+      <div className="container mx-auto px-4 py-6">
+        <Card className="border-beige bg-white mb-6">
+          <CardHeader>
+            <CardTitle className="text-2xl text-sage-dark flex items-center gap-2 title-font">
+              <MapPin className="w-6 h-6" />
+              Route Editor: {route.name}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setIsDrawing(!isDrawing)}
+                  className={`${isDrawing ? 'bg-red-500 hover:bg-red-600' : 'bg-sage-light hover:bg-sage-lighter'} text-white`}
+                >
+                  {isDrawing ? 'Stop Tekenen' : 'Start Tekenen'}
+                </Button>
+                <Button
+                  onClick={undoLastPoint}
+                  variant="outline"
+                  className="border-sage-light text-sage-dark hover:bg-sage-lightest"
+                  disabled={coordinates.length === 0}
+                >
+                  <Undo className="w-4 h-4 mr-2" />
+                  Ongedaan maken
+                </Button>
+                <Button
+                  onClick={clearRoute}
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                  disabled={coordinates.length === 0}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Wissen
+                </Button>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="text-sage-dark">
+                  <span className="font-medium">Afstand: {totalDistance} km</span>
+                  <span className="ml-4 text-sm">Punten: {coordinates.length}</span>
+                </div>
+                <Button
+                  onClick={saveRoute}
+                  className="bg-sage-light hover:bg-sage-lighter text-white"
+                  disabled={coordinates.length === 0}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Opslaan
+                </Button>
+              </div>
+            </div>
+            
+            <div className="bg-sage-lightest rounded-lg p-4 text-sm text-sage">
+              <p className="mb-2"><strong>Instructies:</strong></p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Klik op "Start Tekenen" om te beginnen</li>
+                <li>Klik op de kaart hieronder om punten toe te voegen</li>
+                <li>De route wordt automatisch verbonden tussen de punten</li>
+                <li>Gebruik "Ongedaan maken" om het laatste punt te verwijderen</li>
+                <li>Klik "Opslaan" om de route definitief op te slaan</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Interactive Map Area */}
+        <Card className="border-beige bg-white">
+          <CardContent className="p-0">
+            <div 
+              className="h-[600px] bg-sage-lightest rounded-lg relative cursor-crosshair"
+              onClick={(e) => {
+                if (!isDrawing) return
+                
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const y = e.clientY - rect.top
+                
+                // Convert pixel coordinates to approximate lat/lng (simplified)
+                // In a real implementation, you'd use a proper mapping library
+                const lat = 50.9167 + (300 - y) * 0.0001
+                const lng = 4.0333 + (x - 300) * 0.0001
+                
+                setCoordinates([...coordinates, [lat, lng]])
+              }}
+            >
+              <div className="absolute inset-0 flex items-center justify-center text-sage">
+                {coordinates.length === 0 ? (
+                  <p className="text-lg">
+                    {isDrawing ? 'Klik op de kaart om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+                  </p>
+                ) : (
+                  <div className="absolute inset-0">
+                    {/* Render route points */}
+                    {coordinates.map((coord, index) => (
+                      <div
+                        key={index}
+                        className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${300 + (coord[1] - 4.0333) * 10000}px`,
+                          top: `${300 - (coord[0] - 50.9167) * 10000}px`
+                        }}
+                      />
+                    ))}
+                    
+                    {/* Render route lines */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                      {coordinates.length > 1 && (
+                        <polyline
+                          points={coordinates.map(coord => 
+                            `${300 + (coord[1] - 4.0333) * 10000},${300 - (coord[0] - 50.9167) * 10000}`
+                          ).join(' ')}
+                          fill="none"
+                          stroke="#ef4444"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      )}
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, MapPin, Ruler, Droplets, Navigation } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, MapPin, Ruler, Droplets, Navigation } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -162,7 +162,7 @@ export default function RouteDetailPage() {
                 <CardTitle className="text-sage-dark title-font">Route Kaart</CardTitle>
               </CardHeader>
               <CardContent>
-                <RouteMap coordinates={route.coordinates} routeName={route.name} />
+                <RouteMap coordinates={route.coordinates} routeName={route.name} routeId={route.id} />
               </CardContent>
             </Card>
           </div>
