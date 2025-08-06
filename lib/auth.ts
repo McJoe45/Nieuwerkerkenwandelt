@@ -27,7 +27,7 @@ export function isAuthenticated(): boolean {
 }
 
 export function login(username: string, password: string): boolean {
-  if (username === 'admin' && password === 'wandelen2024') {
+  if (username === 'admin' && password === 'wandelen123') {
     localStorage.setItem('isLoggedIn', 'true')
     return true
   }
