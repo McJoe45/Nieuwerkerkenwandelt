@@ -32,18 +32,22 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
     let mapUrl: string
 
     if (coordinates.length > 0) {
-      // Use actual coordinates from the route
-      const startLat = coordinates[0][0]
-      const startLng = coordinates[0][1]
-      const endLat = coordinates[coordinates.length - 1][0]
-      const endLng = coordinates[coordinates.length - 1][1]
-
-      // Center the map between start and end points
-      const centerLat = (startLat + endLat) / 2
-      const centerLng = (startLng + endLng) / 2
-
-      // Create bounding box around the route
-      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
+      // Calculate bounds for all coordinates
+      const lats = coordinates.map(coord => coord[0])
+      const lngs = coordinates.map(coord => coord[1])
+      const minLat = Math.min(...lats)
+      const maxLat = Math.max(...lats)
+      const minLng = Math.min(...lngs)
+      const maxLng = Math.max(...lngs)
+      
+      // Add some padding to the bounds
+      const padding = 0.005
+      const bbox = `${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}`
+      
+      // Center the map
+      const centerLat = (minLat + maxLat) / 2
+      const centerLng = (minLng + maxLng) / 2
+      
       mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
     } else {
       // Default to Nieuwerkerken center
@@ -57,7 +61,20 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
 
     mapRef.current.innerHTML = ""
     mapRef.current.appendChild(iframe)
-  }, [coordinates])
+    
+    // Force refresh of the component when coordinates change
+    const refreshTimer = setTimeout(() => {
+      if (mapRef.current && coordinates.length > 0) {
+        // Trigger a refresh by slightly modifying the iframe
+        iframe.style.opacity = '0.99'
+        setTimeout(() => {
+          iframe.style.opacity = '1'
+        }, 100)
+      }
+    }, 500)
+
+    return () => clearTimeout(refreshTimer)
+  }, [coordinates]) // Make sure coordinates is in the dependency array
 
   const openFullscreenMap = () => {
     let mapUrl: string

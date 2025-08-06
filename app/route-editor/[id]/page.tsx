@@ -122,6 +122,12 @@ export default function RouteEditorPage() {
         waypoints: waypoints.map(coord => L.latLng(coord[0], coord[1])),
         routeWhileDragging: false,
         addWaypoints: false,
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1',
+          profile: 'foot', // Walking profile
+          polylinePrecision: 5,
+          useHints: false
+        }),
         createMarker: function(i: number, waypoint: any, n: number) {
           const isStart = i === 0
           const isEnd = i === n - 1
@@ -150,12 +156,24 @@ export default function RouteEditorPage() {
         lineOptions: {
           styles: [{ color: '#ff0000', weight: 4, opacity: 0.8 }]
         },
-        show: false, // Hide the instruction panel
+        show: false,
         collapsible: false
       }).on('routesfound', function(e: any) {
         const routes = e.routes
         const summary = routes[0].summary
-        setTotalDistance(Math.round(summary.totalDistance / 100) / 10) // Convert to km
+        setTotalDistance(Math.round(summary.totalDistance / 100) / 10)
+        
+        // Save the actual route coordinates from the routing engine
+        const routeCoords = routes[0].coordinates.map((coord: any) => [coord.lat, coord.lng])
+        // Update the route object with the detailed route coordinates
+        if (route) {
+          const updatedRoute = {
+            ...route,
+            coordinates: routeCoords,
+            distance: Math.round(summary.totalDistance / 100) / 10
+          }
+          updateRoute(updatedRoute)
+        }
       }).addTo(mapInstanceRef.current)
 
       routingControlRef.current = routingControl
@@ -236,14 +254,24 @@ export default function RouteEditorPage() {
   const saveRoute = () => {
     if (!route) return
     
+    // Get the detailed route coordinates if available
+    let routeCoordinates = coordinates
+    if (routingControlRef.current && routingControlRef.current.getRouter) {
+      // Use the detailed route from the routing engine if available
+      const routeData = routingControlRef.current._routes
+      if (routeData && routeData.length > 0) {
+        routeCoordinates = routeData[0].coordinates.map((coord: any) => [coord.lat, coord.lng])
+      }
+    }
+    
     const updatedRoute = {
       ...route,
-      coordinates,
+      coordinates: routeCoordinates,
       distance: totalDistance
     }
     
     updateRoute(updatedRoute)
-    alert('Route opgeslagen!')
+    alert('Route opgeslagen! Je kunt dit venster nu sluiten.')
   }
 
   if (!route) {
@@ -257,19 +285,6 @@ export default function RouteEditorPage() {
   return (
     <div className="min-h-screen bg-cream">
       <div className="container mx-auto px-4 py-6">
-        {/* Back button */}
-        <div className="mb-6">
-          <Link href={`/route/${route.id}`}>
-            <Button
-              variant="outline"
-              className="border-sage-light text-sage-dark hover:bg-sage-lightest bg-transparent"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Terug naar route
-            </Button>
-          </Link>
-        </div>
-
         <Card className="border-beige bg-white mb-6">
           <CardHeader>
             <CardTitle className="text-2xl text-sage-dark flex items-center gap-2 title-font">
