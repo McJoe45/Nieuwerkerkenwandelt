@@ -64,39 +64,52 @@ export default function RouteEditorPage() {
     setTotalDistance(calculateDistance(coordinates))
   }, [coordinates])
 
-  // Load interactive map
+  // Load map - exact same logic as RouteMap component
   useEffect(() => {
     if (!mapRef.current) return
 
-    // Create iframe with OpenStreetMap
+    // Create iframe with OpenStreetMap - EXACT same as RouteMap
     const iframe = document.createElement("iframe")
     iframe.style.width = "100%"
     iframe.style.height = "600px"
     iframe.style.border = "none"
     iframe.style.borderRadius = "8px"
 
-    // Center on Nieuwerkerken
-    const centerLat = 50.9167
-    const centerLng = 4.0333
-    
-    // Create a focused view on Nieuwerkerken area
-    const bbox = `${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}`
-    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
+    let mapUrl: string
 
-    // Clear container and add iframe
-    mapRef.current.innerHTML = ""
-    mapRef.current.appendChild(iframe)
+    if (coordinates.length > 0) {
+      // Use actual coordinates from the route
+      const startLat = coordinates[0][0]
+      const startLng = coordinates[0][1]
+      const endLat = coordinates[coordinates.length - 1][0]
+      const endLng = coordinates[coordinates.length - 1][1]
 
-    // Add click simulation for drawing mode
-    if (isDrawing) {
-      iframe.style.cursor = 'crosshair'
-      iframe.style.border = '2px solid #82AB7D'
+      // Center the map between start and end points
+      const centerLat = (startLat + endLat) / 2
+      const centerLng = (startLng + endLng) / 2
+
+      // Create bounding box around the route
+      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
+      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
     } else {
-      iframe.style.cursor = 'default'
-      iframe.style.border = 'none'
+      // Default to Nieuwerkerken center
+      const centerLat = 50.9167
+      const centerLng = 4.0333
+      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
+      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
     }
 
-  }, [isDrawing])
+    iframe.src = mapUrl
+
+    // Add visual indicator for drawing mode
+    if (isDrawing) {
+      iframe.style.border = '3px solid #82AB7D'
+      iframe.style.boxShadow = '0 0 10px rgba(130, 171, 125, 0.5)'
+    }
+
+    mapRef.current.innerHTML = ""
+    mapRef.current.appendChild(iframe)
+  }, [coordinates, isDrawing]) // Added isDrawing to dependencies
 
   const saveRoute = () => {
     if (!route) return
@@ -167,8 +180,8 @@ export default function RouteEditorPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   onClick={() => setIsDrawing(!isDrawing)}
                   className={`${isDrawing ? 'bg-red-500 hover:bg-red-600' : 'bg-sage-light hover:bg-sage-lighter'} text-white`}
@@ -180,7 +193,7 @@ export default function RouteEditorPage() {
                     onClick={addRandomPoint}
                     className="bg-blue-500 hover:bg-blue-600 text-white"
                   >
-                    Punt Toevoegen (Demo)
+                    + Punt Toevoegen
                   </Button>
                 )}
                 <Button
@@ -204,9 +217,9 @@ export default function RouteEditorPage() {
               </div>
               
               <div className="flex items-center gap-4">
-                <div className="text-sage-dark">
+                <div className="text-sage-dark text-sm">
                   <span className="font-medium">Afstand: {totalDistance} km</span>
-                  <span className="ml-4 text-sm">Punten: {coordinates.length}</span>
+                  <span className="ml-4">Punten: {coordinates.length}</span>
                 </div>
                 <Button
                   onClick={saveRoute}
@@ -218,16 +231,12 @@ export default function RouteEditorPage() {
               </div>
             </div>
             
-            <div className="bg-sage-lightest rounded-lg p-4 text-sm text-sage mb-4">
-              <p className="mb-2"><strong>Instructies:</strong></p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Klik op "Start Tekenen" om te beginnen</li>
-                <li>Gebruik "Punt Toevoegen (Demo)" om punten toe te voegen</li>
-                <li>De route wordt automatisch verbonden tussen de punten</li>
-                <li>Gebruik "Ongedaan maken" om het laatste punt te verwijderen</li>
-                <li>Klik "Opslaan" om de route definitief op te slaan</li>
-              </ul>
-            </div>
+            {isDrawing && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
+                <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
+                <p>Klik op "Punt Toevoegen" om punten aan je route toe te voegen. De kaart heeft een groene rand om aan te geven dat je aan het tekenen bent.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -235,19 +244,19 @@ export default function RouteEditorPage() {
         <Card className="border-beige bg-white">
           <CardContent className="p-4">
             <div className="space-y-4">
-              {/* Map Container */}
+              {/* Map Container - exact same styling as RouteMap */}
               <div 
                 ref={mapRef}
-                className="h-[600px] bg-sage-lightest rounded-lg relative border border-sage-light overflow-hidden"
+                className="h-[600px] bg-sage-lightest rounded-lg"
               />
               
               {/* Route visualization overlay */}
               {coordinates.length > 0 && (
                 <div className="bg-white rounded-lg p-4 border border-sage-light">
                   <h4 className="font-semibold text-sage-dark mb-2">Route Punten ({coordinates.length}):</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm max-h-40 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-sm max-h-40 overflow-y-auto">
                     {coordinates.map((coord, index) => (
-                      <div key={index} className="text-sage">
+                      <div key={index} className="text-sage bg-sage-lightest rounded px-2 py-1">
                         Punt {index + 1}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
                       </div>
                     ))}
@@ -258,7 +267,7 @@ export default function RouteEditorPage() {
               {coordinates.length === 0 && (
                 <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
                   <p className="text-sage-dark text-lg mb-4">
-                    {isDrawing ? 'Gebruik "Punt Toevoegen (Demo)" om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+                    {isDrawing ? 'Gebruik "Punt Toevoegen" om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
                   </p>
                   <p className="text-sage text-sm">
                     De kaart toont het gebied rond Nieuwerkerken waar je routes kunt tekenen.
