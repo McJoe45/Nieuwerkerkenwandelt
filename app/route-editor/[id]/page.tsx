@@ -67,31 +67,58 @@ export default function RouteEditorPage() {
   useEffect(() => {
     if (!mapRef.current) return
 
+    // Clear any existing content
+    mapRef.current.innerHTML = ""
+
+    // Create a loading message first
+    const loadingDiv = document.createElement("div")
+    loadingDiv.className = "flex items-center justify-center h-full text-sage-dark"
+    loadingDiv.innerHTML = "<p>Kaart wordt geladen...</p>"
+    mapRef.current.appendChild(loadingDiv)
+
     // Create iframe with OpenStreetMap for route editing
     const iframe = document.createElement("iframe")
     iframe.style.width = "100%"
     iframe.style.height = "600px"
     iframe.style.border = "none"
     iframe.style.borderRadius = "8px"
+    iframe.style.backgroundColor = "#f0f0f0"
 
-    // Center on Nieuwerkerken
+    // Center on Nieuwerkerken with a larger bounding box
     const centerLat = 50.9167
     const centerLng = 4.0333
     
-    // Use OpenStreetMap with editing capabilities
-    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}&layer=mapnik&marker=${centerLat},${centerLng}`
+    // Use OpenStreetMap embed with a more reliable URL
+    const bbox = `${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}`
+    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
 
-    mapRef.current.innerHTML = ""
-    mapRef.current.appendChild(iframe)
-    
-    // Add click handler for the iframe (simplified - in real app you'd use proper map library)
+    // Handle iframe loading
     iframe.onload = () => {
+      console.log("Map loaded successfully")
       if (isDrawing) {
         iframe.style.cursor = 'crosshair'
       } else {
         iframe.style.cursor = 'default'
       }
     }
+
+    iframe.onerror = () => {
+      console.error("Failed to load map")
+      mapRef.current!.innerHTML = `
+        <div class="flex items-center justify-center h-full bg-red-50 text-red-600 rounded-lg">
+          <p>Kaart kon niet worden geladen. Probeer de pagina te verversen.</p>
+        </div>
+      `
+    }
+
+    // Replace loading message with iframe after a short delay
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.innerHTML = ""
+        mapRef.current.appendChild(iframe)
+      }
+    }, 500)
+
   }, [isDrawing])
 
   const saveRoute = () => {
@@ -202,8 +229,17 @@ export default function RouteEditorPage() {
               {/* Map Container */}
               <div 
                 ref={mapRef}
-                className="h-[600px] bg-sage-lightest rounded-lg relative border-2 border-dashed border-sage-light"
-              />
+                className="h-[600px] bg-gray-100 rounded-lg relative border border-sage-light overflow-hidden"
+                style={{ minHeight: '600px' }}
+              >
+                {/* Fallback content */}
+                <div className="flex items-center justify-center h-full text-sage-dark">
+                  <div className="text-center">
+                    <p className="text-lg mb-2">Kaart wordt voorbereid...</p>
+                    <p className="text-sm text-sage">Even geduld alstublieft</p>
+                  </div>
+                </div>
+              </div>
               
               {/* Instructions when no map is loaded */}
               {coordinates.length === 0 && (
