@@ -29,11 +29,51 @@ export default function RouteDetailPage() {
   const router = useRouter()
   const [route, setRoute] = useState<Route | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Load route data
+  const loadRoute = () => {
     const routeData = getRouteById(params.id as string)
     setRoute(routeData)
+    setLoading(false)
+  }
+
+  useEffect(() => {
     setIsLoggedIn(isAuthenticated())
+    loadRoute()
+  }, [params.id])
+
+  // Listen for route updates
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === params.id) {
+        console.log('Route detail page received update message')
+        loadRoute() // Reload the route data
+      }
+    }
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'routes') {
+        console.log('Storage changed in route detail page')
+        loadRoute() // Reload the route data
+      }
+    }
+
+    const handleFocus = () => {
+      // When window regains focus, refresh route data
+      console.log('Window focused, refreshing route data')
+      loadRoute()
+    }
+
+    window.addEventListener('message', handleMessage)
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [params.id])
 
   const handleDelete = () => {
@@ -41,6 +81,17 @@ export default function RouteDetailPage() {
       deleteRoute(route.id)
       router.push("/")
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <p className="text-sage-dark text-xl">Route wordt geladen...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!route) {
@@ -162,7 +213,12 @@ export default function RouteDetailPage() {
                 <CardTitle className="text-sage-dark title-font">Route Kaart</CardTitle>
               </CardHeader>
               <CardContent>
-                <RouteMap coordinates={route.coordinates} routeName={route.name} routeId={route.id} />
+                <RouteMap 
+                  coordinates={route.coordinates} 
+                  routeName={route.name} 
+                  routeId={route.id}
+                  key={`route-map-${route.id}-${JSON.stringify(route.coordinates)}`} // Force re-render when coordinates change
+                />
               </CardContent>
             </Card>
           </div>
