@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { getRoutes, isAuthenticated, type Route } from "@/lib/supabase"
+import { getRoutes, isAuthenticated, type Route } from "@/lib/auth"
 
 export default function HomePage() {
   const [routes, setRoutes] = useState<Route[]>([])
