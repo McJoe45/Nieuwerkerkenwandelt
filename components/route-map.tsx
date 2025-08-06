@@ -85,10 +85,10 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       }
     }
 
-    const handleStorageChange = (event: StorageEvent) => {
+    const handleStorageChange = async (event: StorageEvent) => {
       if (event.key === 'routes' && routeId) {
         console.log('Storage changed, reloading route')
-        const route = getRouteById(routeId)
+        const route = await getRouteById(routeId)
         if (route && route.coordinates && route.coordinates.length > 0) {
           setCoordinates(route.coordinates)
         }
@@ -106,9 +106,9 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
 
   // Check for route updates when component becomes visible again
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden && routeId) {
-        const route = getRouteById(routeId)
+        const route = await getRouteById(routeId)
         if (route && route.coordinates && route.coordinates.length > 0) {
           console.log('Visibility change - updating route:', route.coordinates.length)
           setCoordinates(route.coordinates)
@@ -116,10 +116,10 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       }
     }
 
-    const handleFocus = () => {
+    const handleFocus = async () => {
       if (routeId) {
         // Reload route data when window gets focus
-        const route = getRouteById(routeId)
+        const route = await getRouteById(routeId)
         if (route && route.coordinates && route.coordinates.length > 0) {
           console.log('Window focus - updating route:', route.coordinates.length)
           setCoordinates(route.coordinates)

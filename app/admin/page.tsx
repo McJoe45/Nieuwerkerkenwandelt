@@ -3,27 +3,27 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Plus, Edit, Trash2, MapPin, Clock } from 'lucide-react'
+import { Edit, Trash2, Plus, MapPin, Clock } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { isAuthenticated, getAllRoutes, deleteRoute, type Route } from "@/lib/auth"
+import { getRoutes, deleteRoute, isAuthenticated, type Route } from "@/lib/auth"
 
 export default function AdminPage() {
+  const router = useRouter()
   const [routes, setRoutes] = useState<Route[]>([])
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      router.push("/login")
+      router.push('/login')
       return
     }
 
     async function loadRoutes() {
       try {
-        const routesData = await getAllRoutes()
+        const routesData = await getRoutes()
         setRoutes(routesData)
       } catch (error) {
         console.error('Error loading routes:', error)
@@ -41,7 +41,7 @@ export default function AdminPage() {
       if (success) {
         setRoutes(routes.filter(route => route.id !== id))
       } else {
-        alert("Fout bij het verwijderen van de route")
+        alert("Er is een fout opgetreden bij het verwijderen van de route.")
       }
     }
   }
@@ -61,7 +61,7 @@ export default function AdminPage() {
         <Header />
         <main className="container mx-auto px-6 py-12">
           <div className="text-center">
-            <p className="text-sage-dark">Routes worden geladen...</p>
+            <p className="text-sage-dark text-xl">Routes worden geladen...</p>
           </div>
         </main>
       </div>
@@ -72,40 +72,46 @@ export default function AdminPage() {
     <div className="min-h-screen bg-cream">
       <Header />
       
-      <main className="container mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-sage-dark title-font">Route Beheer</h1>
+      <main className="container mx-auto px-6 py-12">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-sage-dark">Route Beheer</h1>
           <Link href="/create-route">
             <Button className="bg-sage hover:bg-sage-light text-white">
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-5 h-5 mr-2" />
               Nieuwe Route
             </Button>
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {routes.map((route) => (
-            <Card key={route.id} className="bg-white border-sage-light hover:shadow-lg transition-shadow">
+            <Card key={route.id} className="border-2 border-beige bg-white/90 backdrop-blur-sm">
               <CardHeader>
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 bg-sage-light rounded-xl flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 bg-sage-light rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-white" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-sage-dark text-lg title-font">{route.name}</CardTitle>
-                    <p className="text-sage text-sm">
-                      {route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten.join(' • ') : ''}
-                    </p>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg text-sage-dark mb-1">
+                      {route.name}
+                    </CardTitle>
+                    <div className="flex flex-wrap gap-1">
+                      {route.gehuchten.map((gehucht, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs bg-sage-light/10 text-sage-dark border-sage-light/20">
+                          {gehucht}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2 text-sage-dark">
+                <div className="flex items-center gap-4 text-sage text-sm">
+                  <div className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    <span className="font-semibold">{route.distance} km</span>
+                    <span>{route.distance} km</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sage-dark">
+                  <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     <span>{route.duration}</span>
                   </div>
@@ -122,7 +128,7 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                <p className="text-sage text-sm leading-relaxed line-clamp-2">
+                <p className="text-sage-dark/70 text-sm line-clamp-2">
                   {route.description}
                 </p>
 
@@ -153,14 +159,10 @@ export default function AdminPage() {
 
         {routes.length === 0 && (
           <div className="text-center py-12">
-            <div className="w-20 h-20 bg-sage-light/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <MapPin className="w-10 h-10 text-sage" />
-            </div>
-            <h2 className="text-xl font-semibold text-sage-dark mb-4">Geen routes gevonden</h2>
-            <p className="text-sage mb-6">Er zijn nog geen wandelroutes toegevoegd.</p>
+            <p className="text-sage-dark/70 text-lg mb-4">Geen routes gevonden.</p>
             <Link href="/create-route">
               <Button className="bg-sage hover:bg-sage-light text-white">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-5 h-5 mr-2" />
                 Eerste Route Toevoegen
               </Button>
             </Link>

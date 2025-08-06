@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 export interface Route {
   id: string
@@ -15,16 +15,19 @@ export interface Route {
   coordinates: [number, number][]
   difficulty: string
   duration: string
-  highlights?: string[]
-  created_at?: string
-  updated_at?: string
+  highlights: string[]
+}
+
+export interface User {
+  id: string
+  username: string
+  password: string
 }
 
 // Authentication functions
 export function login(username: string, password: string): boolean {
   if (username === 'admin' && password === 'wandelen123') {
     localStorage.setItem('isAuthenticated', 'true')
-    localStorage.setItem('currentUser', username)
     return true
   }
   return false
@@ -32,7 +35,6 @@ export function login(username: string, password: string): boolean {
 
 export function logout(): void {
   localStorage.removeItem('isAuthenticated')
-  localStorage.removeItem('currentUser')
 }
 
 export function isAuthenticated(): boolean {
@@ -40,18 +42,24 @@ export function isAuthenticated(): boolean {
   return localStorage.getItem('isAuthenticated') === 'true'
 }
 
-export function getCurrentUser(): string {
-  if (typeof window === 'undefined') return ''
-  return localStorage.getItem('currentUser') || ''
+export function getCurrentUser(): User | null {
+  if (isAuthenticated()) {
+    return {
+      id: '1',
+      username: 'admin',
+      password: 'wandelen123'
+    }
+  }
+  return null
 }
 
-// Database functions
-export async function getAllRoutes(): Promise<Route[]> {
+// Route functions with Supabase
+export async function getRoutes(): Promise<Route[]> {
   try {
     const { data, error } = await supabase
       .from('routes')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('name')
 
     if (error) {
       console.error('Error fetching routes:', error)
@@ -85,23 +93,21 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function saveRoute(route: Omit<Route, 'id' | 'created_at' | 'updated_at'>): Promise<string | null> {
+export async function createRoute(route: Omit<Route, 'id'>): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('routes')
       .insert([route])
-      .select('id')
-      .single()
 
     if (error) {
-      console.error('Error saving route:', error)
-      return null
+      console.error('Error creating route:', error)
+      return false
     }
 
-    return data.id
+    return true
   } catch (error) {
-    console.error('Error saving route:', error)
-    return null
+    console.error('Error creating route:', error)
+    return false
   }
 }
 
@@ -142,6 +148,3 @@ export async function deleteRoute(id: string): Promise<boolean> {
     return false
   }
 }
-
-// Legacy functions for backward compatibility
-export const getRoutes = getAllRoutes
