@@ -18,39 +18,29 @@ export interface Route {
   highlights: string[]
 }
 
-export interface User {
-  id: string
-  username: string
-  password: string
-}
-
 // Authentication functions
 export function login(username: string, password: string): boolean {
   if (username === 'admin' && password === 'wandelen123') {
-    localStorage.setItem('isAuthenticated', 'true')
+    localStorage.setItem('isLoggedIn', 'true')
+    localStorage.setItem('username', username)
     return true
   }
   return false
 }
 
 export function logout(): void {
-  localStorage.removeItem('isAuthenticated')
+  localStorage.removeItem('isLoggedIn')
+  localStorage.removeItem('username')
 }
 
 export function isAuthenticated(): boolean {
   if (typeof window === 'undefined') return false
-  return localStorage.getItem('isAuthenticated') === 'true'
+  return localStorage.getItem('isLoggedIn') === 'true'
 }
 
-export function getCurrentUser(): User | null {
-  if (isAuthenticated()) {
-    return {
-      id: '1',
-      username: 'admin',
-      password: 'wandelen123'
-    }
-  }
-  return null
+export function getCurrentUser(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem('username') || ''
 }
 
 // Route functions with Supabase
@@ -59,7 +49,7 @@ export async function getRoutes(): Promise<Route[]> {
     const { data, error } = await supabase
       .from('routes')
       .select('*')
-      .order('name')
+      .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error fetching routes:', error)
@@ -93,44 +83,40 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function createRoute(route: Omit<Route, 'id'>): Promise<boolean> {
+export async function addRoute(route: Omit<Route, 'id'>): Promise<void> {
   try {
     const { error } = await supabase
       .from('routes')
       .insert([route])
 
     if (error) {
-      console.error('Error creating route:', error)
-      return false
+      console.error('Error adding route:', error)
+      throw error
     }
-
-    return true
   } catch (error) {
-    console.error('Error creating route:', error)
-    return false
+    console.error('Error adding route:', error)
+    throw error
   }
 }
 
-export async function updateRoute(id: string, route: Partial<Route>): Promise<boolean> {
+export async function updateRoute(updatedRoute: Route): Promise<void> {
   try {
     const { error } = await supabase
       .from('routes')
-      .update(route)
-      .eq('id', id)
+      .update(updatedRoute)
+      .eq('id', updatedRoute.id)
 
     if (error) {
       console.error('Error updating route:', error)
-      return false
+      throw error
     }
-
-    return true
   } catch (error) {
     console.error('Error updating route:', error)
-    return false
+    throw error
   }
 }
 
-export async function deleteRoute(id: string): Promise<boolean> {
+export async function deleteRoute(id: string): Promise<void> {
   try {
     const { error } = await supabase
       .from('routes')
@@ -139,12 +125,10 @@ export async function deleteRoute(id: string): Promise<boolean> {
 
     if (error) {
       console.error('Error deleting route:', error)
-      return false
+      throw error
     }
-
-    return true
   } catch (error) {
     console.error('Error deleting route:', error)
-    return false
+    throw error
   }
 }
