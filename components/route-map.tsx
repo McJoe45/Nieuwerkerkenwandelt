@@ -1,22 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { MapContainer, TileLayer, Polyline, Marker, Popup } from "react-leaflet"
-import { LatLngExpression } from "leaflet"
-import "leaflet/dist/leaflet.css"
-import L from "leaflet"
-import Link from "next/link"
+import { useState, useEffect, useRef } from "react"
 import { ExternalLink, Edit } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { isAuthenticated, getRouteById } from "@/lib/auth"
 
-// Fix for default markers
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-})
+declare global {
+  interface Window {
+    L: any;
+  }
+}
 
 interface RouteMapProps {
   coordinates: [number, number][]
@@ -38,25 +31,76 @@ export default function RouteMap({
   const [isClient, setIsClient] = useState(false)
   const [coordinates, setCoordinates] = useState(initialCoordinates)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [mapKey, setMapKey] = useState(0) // Force re-render
+  const [scriptsLoaded, setScriptsLoaded] = useState(false)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
 
   useEffect(() => {
     setIsClient(true)
     setIsLoggedIn(isAuthenticated())
   }, [])
 
+  // Load Leaflet scripts
+  useEffect(() => {
+    const loadScripts = async () => {
+      if (typeof window !== 'undefined' && !window.L) {
+        const leafletCSS = document.createElement('link')
+        leafletCSS.rel = 'stylesheet'
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+        document.head.appendChild(leafletCSS)
+
+        const leafletJS = document.createElement('script')
+        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        leafletJS.onload = () => {
+          setScriptsLoaded(true)
+        }
+        document.body.appendChild(leafletJS)
+      } else if (window.L) {
+        setScriptsLoaded(true)
+      }
+    }
+
+    loadScripts()
+  }, [])
+
+  // Initialize map when scripts are loaded
+  useEffect(() => {
+    if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
+
+    const L = window.L
+    const map = L.map(mapRef.current).setView([50.9167, 4.0333], 13)
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map)
+
+    mapInstanceRef.current = map
+
+    // Display initial coordinates
+    if (coordinates && coordinates.length > 0) {
+      displayRoute(coordinates)
+    }
+
+  }, [scriptsLoaded])
+
   // Update coordinates when props change
   useEffect(() => {
     setCoordinates(initialCoordinates)
-  }, [initialCoordinates])
+    if (mapInstanceRef.current && scriptsLoaded) {
+      displayRoute(initialCoordinates)
+    }
+  }, [initialCoordinates, scriptsLoaded])
 
   // Listen for route updates from editor window
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
         console.log('Received route update message:', event.data)
-        setCoordinates(event.data.coordinates)
-        setMapKey(prev => prev + 1) // Force map re-render
+        const newCoordinates = event.data.coordinates
+        setCoordinates(newCoordinates)
+        if (mapInstanceRef.current && scriptsLoaded) {
+          displayRoute(newCoordinates)
+        }
       }
     }
 
@@ -66,8 +110,11 @@ export default function RouteMap({
         // Get fresh route data from storage
         const updatedRoute = getRouteById(routeId)
         if (updatedRoute && updatedRoute.coordinates) {
-          setCoordinates(updatedRoute.coordinates)
-          setMapKey(prev => prev + 1) // Force map re-render
+          const newCoordinates = updatedRoute.coordinates
+          setCoordinates(newCoordinates)
+          if (mapInstanceRef.current && scriptsLoaded) {
+            displayRoute(newCoordinates)
+          }
         }
       }
     }
@@ -81,8 +128,11 @@ export default function RouteMap({
           const newCoords = JSON.stringify(updatedRoute.coordinates)
           if (currentCoords !== newCoords) {
             console.log('Route updated while window was not focused')
-            setCoordinates(updatedRoute.coordinates)
-            setMapKey(prev => prev + 1) // Force map re-render
+            const newCoordinates = updatedRoute.coordinates
+            setCoordinates(newCoordinates)
+            if (mapInstanceRef.current && scriptsLoaded) {
+              displayRoute(newCoordinates)
+            }
           }
         }
       }
@@ -97,31 +147,69 @@ export default function RouteMap({
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [routeId, coordinates])
+  }, [routeId, coordinates, scriptsLoaded])
 
-  if (!isClient) {
-    return (
-      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
-        <p className="text-gray-500">Kaart wordt geladen...</p>
-      </div>
-    )
+  const displayRoute = (coords: [number, number][]) => {
+    if (!mapInstanceRef.current || !window.L || !coords || coords.length === 0) return
+
+    const L = window.L
+
+    // Clear existing layers
+    mapInstanceRef.current.eachLayer((layer: any) => {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        mapInstanceRef.current.removeLayer(layer)
+      }
+    })
+
+    if (coords.length === 1) {
+      // Single point
+      mapInstanceRef.current.setView([coords[0][0], coords[0][1]], 16)
+      L.marker([coords[0][0], coords[0][1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          iconSize: [25, 25],
+          iconAnchor: [12, 12]
+        })
+      }).addTo(mapInstanceRef.current)
+      return
+    }
+
+    // Multiple points - draw the route
+    const polyline = L.polyline(coords, {
+      color: 'red',
+      weight: 4,
+      opacity: 0.8
+    }).addTo(mapInstanceRef.current)
+
+    // Add start marker
+    L.marker([coords[0][0], coords[0][1]], {
+      icon: L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+        iconSize: [25, 25],
+        iconAnchor: [12, 12]
+      })
+    }).addTo(mapInstanceRef.current)
+
+    // Add end marker
+    L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
+      icon: L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background-color: red; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">EINDE</div>',
+        iconSize: [25, 25],
+        iconAnchor: [12, 12]
+      })
+    }).addTo(mapInstanceRef.current)
+
+    // Fit map to route bounds with padding
+    mapInstanceRef.current.fitBounds(polyline.getBounds(), { 
+      padding: [20, 20],
+      maxZoom: 16
+    })
+
+    console.log('Route displayed:', coords.length, 'points')
   }
-
-  if (!coordinates || coordinates.length === 0) {
-    return (
-      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
-        <p className="text-gray-500">Geen route gegevens beschikbaar</p>
-      </div>
-    )
-  }
-
-  // Convert coordinates to LatLngExpression format
-  const pathCoordinates: LatLngExpression[] = coordinates.map(([lat, lng]) => [lat, lng])
-
-  // Calculate center point
-  const centerLat = coordinates.reduce((sum, [lat]) => sum + lat, 0) / coordinates.length
-  const centerLng = coordinates.reduce((sum, [, lng]) => sum + lng, 0) / coordinates.length
-  const center: LatLngExpression = [centerLat, centerLng]
 
   const openFullscreenMap = () => {
     if (!routeId) return
@@ -135,52 +223,29 @@ export default function RouteMap({
     window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
   }
 
+  if (!isClient) {
+    return (
+      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
+        <p className="text-gray-500">Kaart wordt geladen...</p>
+      </div>
+    )
+  }
+
+  if (!scriptsLoaded) {
+    return (
+      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
+        <p className="text-gray-500">Kaart scripts worden geladen...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
-      <MapContainer
-        center={center}
-        zoom={13}
+      <div 
+        ref={mapRef} 
         className={className}
         style={{ height: "400px", width: "100%" }}
-        key={`map-${routeId}-${mapKey}`} // Force re-render when coordinates change
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        {/* Route line */}
-        <Polyline
-          positions={pathCoordinates}
-          color="red"
-          weight={4}
-          opacity={0.8}
-        />
-        
-        {/* Start marker */}
-        {coordinates.length > 0 && (
-          <Marker position={[coordinates[0][0], coordinates[0][1]]}>
-            <Popup>
-              <div className="text-center">
-                <strong>Start</strong>
-                {routeName && <div>{routeName}</div>}
-              </div>
-            </Popup>
-          </Marker>
-        )}
-        
-        {/* End marker (if different from start) */}
-        {coordinates.length > 1 && (
-          <Marker position={[coordinates[coordinates.length - 1][0], coordinates[coordinates.length - 1][1]]}>
-            <Popup>
-              <div className="text-center">
-                <strong>Einde</strong>
-                {routeName && <div>{routeName}</div>}
-              </div>
-            </Popup>
-          </Marker>
-        )}
-      </MapContainer>
+      />
       
       {/* Controls based on mode */}
       {routeId && (
