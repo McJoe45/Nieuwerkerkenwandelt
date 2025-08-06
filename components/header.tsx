@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { User, LogOut } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import { isAuthenticated, logout, getCurrentUser } from "@/lib/auth"
+import { isAuthenticated, logout, getCurrentUser } from "@/lib/supabase"
 
 export default function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)

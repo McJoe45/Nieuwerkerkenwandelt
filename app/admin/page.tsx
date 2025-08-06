@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { getRoutes, deleteRoute, isAuthenticated } from "@/lib/auth"
+import { getRoutes, deleteRoute, isAuthenticated } from "@/lib/supabase"
 
 interface Route {
   id: string
@@ -27,18 +27,27 @@ export default function AdminPage() {
   const [routes, setRoutes] = useState<Route[]>([])
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push("/login")
-      return
-    }
+    const loadData = async () => {
+      if (!isAuthenticated()) {
+        router.push("/login")
+        return
+      }
 
-    setRoutes(getRoutes())
+      const routesData = await getRoutes()
+      setRoutes(routesData)
+    }
+    loadData()
   }, [router])
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Weet je zeker dat je de route "${name}" wilt verwijderen?`)) {
-      deleteRoute(id)
-      setRoutes(getRoutes())
+      const success = await deleteRoute(id)
+      if (success) {
+        const routesData = await getRoutes()
+        setRoutes(routesData)
+      } else {
+        alert('Er is een fout opgetreden bij het verwijderen van de route.')
+      }
     }
   }
 

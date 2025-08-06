@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
 import RouteMap from "@/components/route-map"
-import { getRouteById, deleteRoute, isAuthenticated } from "@/lib/auth"
+import { getRouteById, deleteRoute, isAuthenticated, getCurrentUser } from "@/lib/supabase"
 
 interface Route {
   id: string
@@ -32,8 +32,8 @@ export default function RouteDetailPage() {
   const [loading, setLoading] = useState(true)
 
   // Load route data
-  const loadRoute = () => {
-    const routeData = getRouteById(params.id as string)
+  const loadRoute = async () => {
+    const routeData = await getRouteById(params.id as string)
     setRoute(routeData)
     setLoading(false)
   }
@@ -76,10 +76,14 @@ export default function RouteDetailPage() {
     }
   }, [params.id])
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (route && confirm(`Weet je zeker dat je de route "${route.name}" wilt verwijderen?`)) {
-      deleteRoute(route.id)
-      router.push("/")
+      const success = await deleteRoute(route.id)
+      if (success) {
+        router.push("/")
+      } else {
+        alert('Er is een fout opgetreden bij het verwijderen van de route.')
+      }
     }
   }
 

@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import Header from "@/components/header"
 import RouteMap from "@/components/route-map"
-import { getRouteById, updateRoute, isAuthenticated, type Route } from "@/lib/auth"
+import { getRouteById, updateRoute, isAuthenticated } from "@/lib/supabase"
+import type { Route } from "@/lib/supabase"
 
 export default function EditRoutePage() {
   const params = useParams()

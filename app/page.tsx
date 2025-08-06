@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { getRoutes, isAuthenticated } from "@/lib/auth"
+import { getRoutes, isAuthenticated } from "@/lib/supabase"
 
 interface Route {
   id: string
@@ -26,8 +26,12 @@ export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    setRoutes(getRoutes())
-    setIsLoggedIn(isAuthenticated())
+    const loadRoutes = async () => {
+      const routesData = await getRoutes()
+      setRoutes(routesData)
+      setIsLoggedIn(isAuthenticated())
+    }
+    loadRoutes()
   }, [])
 
   const getDifficultyColor = (difficulty: string) => {

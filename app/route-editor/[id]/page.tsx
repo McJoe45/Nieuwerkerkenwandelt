@@ -5,7 +5,8 @@ import { useParams } from "next/navigation"
 import { Save, Trash2, MapPin, Play, Square } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getRouteById, updateRoute } from "@/lib/auth"
+import { getRouteById, updateRoute } from "@/lib/supabase"
+import type { Route } from "@/lib/supabase"
 
 interface Route {
   id: string
@@ -39,17 +40,20 @@ export default function RouteEditorPage() {
   const [scriptsLoaded, setScriptsLoaded] = useState(false)
 
   useEffect(() => {
-    const routeData = getRouteById(params.id as string)
-    if (routeData) {
-      setRoute(routeData)
-      if (routeData.coordinates && routeData.coordinates.length > 0) {
-        setRouteCoordinates(routeData.coordinates)
-        const coords = routeData.coordinates
-        if (coords.length >= 2) {
-          setWaypoints([coords[0], coords[coords.length - 1]])
+    const loadRoute = async () => {
+      const routeData = await getRouteById(params.id as string)
+      if (routeData) {
+        setRoute(routeData)
+        if (routeData.coordinates && routeData.coordinates.length > 0) {
+          setRouteCoordinates(routeData.coordinates)
+          const coords = routeData.coordinates
+          if (coords.length >= 2) {
+            setWaypoints([coords[0], coords[coords.length - 1]])
+          }
         }
       }
     }
+    loadRoute()
   }, [params.id])
 
   // Load Leaflet and Routing Machine scripts
@@ -127,7 +131,7 @@ export default function RouteEditorPage() {
       L.marker([coords[0][0], coords[0][1]], {
         icon: L.divIcon({
           className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-center: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
           iconSize: [30, 30],
           iconAnchor: [15, 15]
         })
@@ -379,7 +383,7 @@ export default function RouteEditorPage() {
     }
   }
 
-  const saveAndClose = () => {
+  const saveAndClose = async () => {
     if (!route || routeCoordinates.length === 0) {
       alert('Er is geen route om op te slaan!')
       return
@@ -397,32 +401,26 @@ export default function RouteEditorPage() {
       distance: updatedRoute.distance
     })
     
-    // Save to localStorage
-    updateRoute(updatedRoute)
+    // Save to Supabase
+    const result = await updateRoute(updatedRoute)
     
-    // Notify parent window with detailed data
-    if (window.opener) {
-      window.opener.postMessage({
-        type: 'ROUTE_UPDATED',
-        routeId: route.id,
-        coordinates: routeCoordinates,
-        distance: totalDistance,
-        route: updatedRoute
-      }, '*')
-      
-      // Also trigger a storage event for the parent window
-      try {
-        window.opener.dispatchEvent(new StorageEvent('storage', {
-          key: 'routes',
-          newValue: localStorage.getItem('routes')
-        }))
-      } catch (e) {
-        console.log('Could not dispatch storage event to parent')
+    if (result) {
+      // Notify parent window with detailed data
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'ROUTE_UPDATED',
+          routeId: route.id,
+          coordinates: routeCoordinates,
+          distance: totalDistance,
+          route: updatedRoute
+        }, '*')
       }
+      
+      alert('Route opgeslagen!')
+      window.close()
+    } else {
+      alert('Er is een fout opgetreden bij het opslaan van de route.')
     }
-    
-    alert('Route opgeslagen!')
-    window.close()
   }
 
   if (!route) {

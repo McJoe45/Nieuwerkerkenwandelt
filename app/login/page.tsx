@@ -4,12 +4,12 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Shield } from "lucide-react"
+import { Eye, EyeOff, Shield } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { login } from "@/lib/auth"
+import { login } from "@/lib/supabase"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -24,7 +24,7 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
 
-    const success = login(username, password)
+    const success = await login(username, password)
 
     if (success) {
       router.push("/")

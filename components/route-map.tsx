@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { ExternalLink, Edit } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import { isAuthenticated, getRouteById } from "@/lib/auth"
+import { isAuthenticated, getRouteById } from "@/lib/supabase"
 
 declare global {
   interface Window {
@@ -104,11 +104,11 @@ export default function RouteMap({
       }
     }
 
-    const handleStorageChange = (event: StorageEvent) => {
+    const handleStorageChange = async (event: StorageEvent) => {
       if (event.key === 'routes' && routeId) {
         console.log('Storage changed, refreshing route data')
         // Get fresh route data from storage
-        const updatedRoute = getRouteById(routeId)
+        const updatedRoute = await getRouteById(routeId)
         if (updatedRoute && updatedRoute.coordinates) {
           const newCoordinates = updatedRoute.coordinates
           setCoordinates(newCoordinates)
@@ -119,10 +119,10 @@ export default function RouteMap({
       }
     }
 
-    const handleFocus = () => {
+    const handleFocus = async () => {
       // When window regains focus, check for route updates
       if (routeId) {
-        const updatedRoute = getRouteById(routeId)
+        const updatedRoute = await getRouteById(routeId)
         if (updatedRoute && updatedRoute.coordinates) {
           const currentCoords = JSON.stringify(coordinates)
           const newCoords = JSON.stringify(updatedRoute.coordinates)

@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import Header from "@/components/header"
 import RouteMap from "@/components/route-map"
-import { addRoute, isAuthenticated, type Route } from "@/lib/auth"
+import { addRoute, isAuthenticated } from "@/lib/supabase"
+import type { Route } from "@/lib/supabase"
 
 export default function CreateRoutePage() {
   const router = useRouter()
@@ -46,7 +47,7 @@ export default function CreateRoutePage() {
     setLoading(true)
     
     try {
-      const routeData: Omit<Route, 'id' | 'created_at'> = {
+      const routeData: Omit<Route, 'id' | 'created_at' | 'updated_at'> = {
         name: formData.name,
         description: formData.description,
         distance: formData.distance,
