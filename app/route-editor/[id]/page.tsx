@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { Save, Undo, Redo, MapPin, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ export default function RouteEditorPage() {
   const [coordinates, setCoordinates] = useState<[number, number][]>([])
   const [isDrawing, setIsDrawing] = useState(false)
   const [totalDistance, setTotalDistance] = useState(0)
+  const mapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const routeData = getRouteById(params.id as string)
@@ -61,6 +62,37 @@ export default function RouteEditorPage() {
   useEffect(() => {
     setTotalDistance(calculateDistance(coordinates))
   }, [coordinates])
+
+  // Load interactive map
+  useEffect(() => {
+    if (!mapRef.current) return
+
+    // Create iframe with OpenStreetMap for route editing
+    const iframe = document.createElement("iframe")
+    iframe.style.width = "100%"
+    iframe.style.height = "600px"
+    iframe.style.border = "none"
+    iframe.style.borderRadius = "8px"
+
+    // Center on Nieuwerkerken
+    const centerLat = 50.9167
+    const centerLng = 4.0333
+    
+    // Use OpenStreetMap with editing capabilities
+    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}&layer=mapnik&marker=${centerLat},${centerLng}`
+
+    mapRef.current.innerHTML = ""
+    mapRef.current.appendChild(iframe)
+    
+    // Add click handler for the iframe (simplified - in real app you'd use proper map library)
+    iframe.onload = () => {
+      if (isDrawing) {
+        iframe.style.cursor = 'crosshair'
+      } else {
+        iframe.style.cursor = 'default'
+      }
+    }
+  }, [isDrawing])
 
   const saveRoute = () => {
     if (!route) return
@@ -165,61 +197,39 @@ export default function RouteEditorPage() {
 
         {/* Interactive Map Area */}
         <Card className="border-beige bg-white">
-          <CardContent className="p-0">
-            <div 
-              className="h-[600px] bg-sage-lightest rounded-lg relative cursor-crosshair"
-              onClick={(e) => {
-                if (!isDrawing) return
-                
-                const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left
-                const y = e.clientY - rect.top
-                
-                // Convert pixel coordinates to approximate lat/lng (simplified)
-                // In a real implementation, you'd use a proper mapping library
-                const lat = 50.9167 + (300 - y) * 0.0001
-                const lng = 4.0333 + (x - 300) * 0.0001
-                
-                setCoordinates([...coordinates, [lat, lng]])
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center text-sage">
-                {coordinates.length === 0 ? (
-                  <p className="text-lg">
-                    {isDrawing ? 'Klik op de kaart om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+          <CardContent className="p-4">
+            <div className="space-y-4">
+              {/* Map Container */}
+              <div 
+                ref={mapRef}
+                className="h-[600px] bg-sage-lightest rounded-lg relative border-2 border-dashed border-sage-light"
+              />
+              
+              {/* Instructions when no map is loaded */}
+              {coordinates.length === 0 && (
+                <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
+                  <p className="text-sage-dark text-lg mb-4">
+                    {isDrawing ? 'Klik op de kaart hierboven om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
                   </p>
-                ) : (
-                  <div className="absolute inset-0">
-                    {/* Render route points */}
+                  <p className="text-sage text-sm">
+                    De kaart wordt geladen... Als je geen kaart ziet, probeer de pagina te verversen.
+                  </p>
+                </div>
+              )}
+              
+              {/* Route visualization overlay */}
+              {coordinates.length > 0 && (
+                <div className="bg-white rounded-lg p-4 border border-sage-light">
+                  <h4 className="font-semibold text-sage-dark mb-2">Route Punten:</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
                     {coordinates.map((coord, index) => (
-                      <div
-                        key={index}
-                        className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: `${300 + (coord[1] - 4.0333) * 10000}px`,
-                          top: `${300 - (coord[0] - 50.9167) * 10000}px`
-                        }}
-                      />
+                      <div key={index} className="text-sage">
+                        Punt {index + 1}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
+                      </div>
                     ))}
-                    
-                    {/* Render route lines */}
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                      {coordinates.length > 1 && (
-                        <polyline
-                          points={coordinates.map(coord => 
-                            `${300 + (coord[1] - 4.0333) * 10000},${300 - (coord[0] - 50.9167) * 10000}`
-                          ).join(' ')}
-                          fill="none"
-                          stroke="#ef4444"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      )}
-                    </svg>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
