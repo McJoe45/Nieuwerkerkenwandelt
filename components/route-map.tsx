@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ExternalLink, Edit } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import { isAuthenticated } from "@/lib/auth"
+import { isAuthenticated, getRouteById } from "@/lib/auth"
 
 interface RouteMapProps {
   coordinates: [number, number][]
@@ -11,15 +11,53 @@ interface RouteMapProps {
   routeId?: string
 }
 
-export default function RouteMap({ coordinates, routeName, routeId }: RouteMapProps) {
+export default function RouteMap({ coordinates: initialCoordinates, routeName, routeId }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [coordinates, setCoordinates] = useState(initialCoordinates)
 
   useEffect(() => {
     setIsLoggedIn(isAuthenticated())
   }, [])
 
+  // Listen for route updates from the editor window
   useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
+        console.log('Received route update:', event.data)
+        setCoordinates(event.data.coordinates)
+        // Force refresh of the map
+        setTimeout(() => {
+          if (mapRef.current) {
+            const iframe = mapRef.current.querySelector('iframe')
+            if (iframe) {
+              iframe.style.opacity = '0.5'
+              setTimeout(() => {
+                iframe.style.opacity = '1'
+                // Reload the iframe with new coordinates
+                loadMap(event.data.coordinates)
+              }, 100)
+            }
+          }
+        }, 100)
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [routeId])
+
+  // Also check for route updates when component mounts or routeId changes
+  useEffect(() => {
+    if (routeId) {
+      const route = getRouteById(routeId)
+      if (route && route.coordinates) {
+        setCoordinates(route.coordinates)
+      }
+    }
+  }, [routeId])
+
+  const loadMap = (coords: [number, number][]) => {
     if (!mapRef.current) return
 
     // Create iframe with OpenStreetMap
@@ -31,10 +69,10 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
 
     let mapUrl: string
 
-    if (coordinates.length > 0) {
+    if (coords.length > 0) {
       // Calculate bounds for all coordinates
-      const lats = coordinates.map(coord => coord[0])
-      const lngs = coordinates.map(coord => coord[1])
+      const lats = coords.map(coord => coord[0])
+      const lngs = coords.map(coord => coord[1])
       const minLat = Math.min(...lats)
       const maxLat = Math.max(...lats)
       const minLng = Math.min(...lngs)
@@ -61,20 +99,11 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
 
     mapRef.current.innerHTML = ""
     mapRef.current.appendChild(iframe)
-    
-    // Force refresh of the component when coordinates change
-    const refreshTimer = setTimeout(() => {
-      if (mapRef.current && coordinates.length > 0) {
-        // Trigger a refresh by slightly modifying the iframe
-        iframe.style.opacity = '0.99'
-        setTimeout(() => {
-          iframe.style.opacity = '1'
-        }, 100)
-      }
-    }, 500)
+  }
 
-    return () => clearTimeout(refreshTimer)
-  }, [coordinates]) // Make sure coordinates is in the dependency array
+  useEffect(() => {
+    loadMap(coordinates)
+  }, [coordinates])
 
   const openFullscreenMap = () => {
     let mapUrl: string
