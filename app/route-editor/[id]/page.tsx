@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
-import { Save, Undo, Trash2, MapPin, ArrowLeft } from 'lucide-react'
+import { Save, Trash2, MapPin, ArrowLeft, CheckCircle } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,12 @@ interface Route {
   highlights: string[]
 }
 
+declare global {
+  interface Window {
+    L: any;
+  }
+}
+
 export default function RouteEditorPage() {
   const params = useParams()
   const [route, setRoute] = useState<Route | null>(null)
@@ -28,6 +34,9 @@ export default function RouteEditorPage() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [totalDistance, setTotalDistance] = useState(0)
   const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const routingControlRef = useRef<any>(null)
+  const [scriptsLoaded, setScriptsLoaded] = useState(false)
 
   useEffect(() => {
     const routeData = getRouteById(params.id as string)
@@ -37,79 +46,192 @@ export default function RouteEditorPage() {
     }
   }, [params.id])
 
-  const calculateDistance = (coords: [number, number][]) => {
-    if (coords.length < 2) return 0
-    
-    let distance = 0
-    for (let i = 1; i < coords.length; i++) {
-      const lat1 = coords[i - 1][0]
-      const lon1 = coords[i - 1][1]
-      const lat2 = coords[i][0]
-      const lon2 = coords[i][1]
-      
-      // Haversine formula for distance calculation
-      const R = 6371 // Earth's radius in km
-      const dLat = (lat2 - lat1) * Math.PI / 180
-      const dLon = (lon2 - lon1) * Math.PI / 180
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2)
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-      distance += R * c
+  // Load Leaflet and Routing Machine scripts
+  useEffect(() => {
+    const loadScripts = async () => {
+      if (typeof window !== 'undefined' && !window.L) {
+        // Load Leaflet CSS
+        const leafletCSS = document.createElement('link')
+        leafletCSS.rel = 'stylesheet'
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+        document.head.appendChild(leafletCSS)
+
+        // Load Leaflet JS
+        const leafletJS = document.createElement('script')
+        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        leafletJS.onload = () => {
+          // Load Routing Machine CSS
+          const routingCSS = document.createElement('link')
+          routingCSS.rel = 'stylesheet'
+          routingCSS.href = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css'
+          document.head.appendChild(routingCSS)
+
+          // Load Routing Machine JS
+          const routingJS = document.createElement('script')
+          routingJS.src = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js'
+          routingJS.onload = () => {
+            setScriptsLoaded(true)
+          }
+          document.body.appendChild(routingJS)
+        }
+        document.body.appendChild(leafletJS)
+      } else if (window.L) {
+        setScriptsLoaded(true)
+      }
     }
-    return Math.round(distance * 10) / 10 // Round to 1 decimal
+
+    loadScripts()
+  }, [])
+
+  // Initialize map when scripts are loaded
+  useEffect(() => {
+    if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
+
+    const L = window.L
+
+    // Initialize map centered on Nieuwerkerken
+    const map = L.map(mapRef.current).setView([50.9167, 4.0333], 15)
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map)
+
+    mapInstanceRef.current = map
+
+    // Add existing route if available
+    if (coordinates.length > 0) {
+      updateRouteOnMap(coordinates)
+    }
+
+  }, [scriptsLoaded])
+
+  const updateRouteOnMap = (waypoints: [number, number][]) => {
+    if (!mapInstanceRef.current || !window.L) return
+
+    const L = window.L
+
+    // Remove existing routing control
+    if (routingControlRef.current) {
+      mapInstanceRef.current.removeControl(routingControlRef.current)
+    }
+
+    if (waypoints.length >= 2) {
+      // Create routing control with waypoints
+      const routingControl = L.Routing.control({
+        waypoints: waypoints.map(coord => L.latLng(coord[0], coord[1])),
+        routeWhileDragging: false,
+        addWaypoints: false,
+        createMarker: function(i: number, waypoint: any, n: number) {
+          const isStart = i === 0
+          const isEnd = i === n - 1
+          
+          let markerColor = 'blue'
+          let markerText = `${i + 1}`
+          
+          if (isStart) {
+            markerColor = 'green'
+            markerText = 'START'
+          } else if (isEnd) {
+            markerColor = 'red' 
+            markerText = 'EINDE'
+          }
+
+          return L.marker(waypoint.latLng, {
+            draggable: false,
+            icon: L.divIcon({
+              className: 'custom-marker',
+              html: `<div style="background-color: ${markerColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerText}</div>`,
+              iconSize: [30, 30],
+              iconAnchor: [15, 15]
+            })
+          })
+        },
+        lineOptions: {
+          styles: [{ color: '#ff0000', weight: 4, opacity: 0.8 }]
+        },
+        show: false, // Hide the instruction panel
+        collapsible: false
+      }).on('routesfound', function(e: any) {
+        const routes = e.routes
+        const summary = routes[0].summary
+        setTotalDistance(Math.round(summary.totalDistance / 100) / 10) // Convert to km
+      }).addTo(mapInstanceRef.current)
+
+      routingControlRef.current = routingControl
+    } else if (waypoints.length === 1) {
+      // Single point - just show start marker
+      L.marker([waypoints[0][0], waypoints[0][1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapInstanceRef.current)
+    }
   }
 
+  // Handle map clicks when drawing
   useEffect(() => {
-    setTotalDistance(calculateDistance(coordinates))
-  }, [coordinates])
+    if (!mapInstanceRef.current || !isDrawing) return
 
-  // Load map - exact same logic as RouteMap component
-  useEffect(() => {
-    if (!mapRef.current) return
+    const handleMapClick = (e: any) => {
+      const newPoint: [number, number] = [e.latlng.lat, e.latlng.lng]
+      const newCoordinates = [...coordinates, newPoint]
+      setCoordinates(newCoordinates)
+      updateRouteOnMap(newCoordinates)
+    }
 
-    // Create iframe with OpenStreetMap - EXACT same as RouteMap
-    const iframe = document.createElement("iframe")
-    iframe.style.width = "100%"
-    iframe.style.height = "600px"
-    iframe.style.border = "none"
-    iframe.style.borderRadius = "8px"
+    mapInstanceRef.current.on('dblclick', handleMapClick)
 
-    let mapUrl: string
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.off('dblclick', handleMapClick)
+      }
+    }
+  }, [isDrawing, coordinates])
 
+  const startDrawing = () => {
+    setIsDrawing(true)
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.getContainer().style.cursor = 'crosshair'
+    }
+  }
+
+  const finishRoute = () => {
+    setIsDrawing(false)
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.getContainer().style.cursor = ''
+    }
+  }
+
+  const removeLastPoint = () => {
     if (coordinates.length > 0) {
-      // Use actual coordinates from the route
-      const startLat = coordinates[0][0]
-      const startLng = coordinates[0][1]
-      const endLat = coordinates[coordinates.length - 1][0]
-      const endLng = coordinates[coordinates.length - 1][1]
-
-      // Center the map between start and end points
-      const centerLat = (startLat + endLat) / 2
-      const centerLng = (startLng + endLng) / 2
-
-      // Create bounding box around the route
-      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
-      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
-    } else {
-      // Default to Nieuwerkerken center
-      const centerLat = 50.9167
-      const centerLng = 4.0333
-      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
-      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
+      const newCoordinates = coordinates.slice(0, -1)
+      setCoordinates(newCoordinates)
+      updateRouteOnMap(newCoordinates)
     }
+  }
 
-    iframe.src = mapUrl
-
-    // Add visual indicator for drawing mode
-    if (isDrawing) {
-      iframe.style.border = '3px solid #82AB7D'
-      iframe.style.boxShadow = '0 0 10px rgba(130, 171, 125, 0.5)'
+  const clearRoute = () => {
+    if (confirm('Weet je zeker dat je de hele route wilt wissen?')) {
+      setCoordinates([])
+      setTotalDistance(0)
+      if (routingControlRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeControl(routingControlRef.current)
+        routingControlRef.current = null
+      }
+      // Clear all markers
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.eachLayer((layer: any) => {
+          if (layer instanceof window.L.Marker) {
+            mapInstanceRef.current.removeLayer(layer)
+          }
+        })
+      }
     }
-
-    mapRef.current.innerHTML = ""
-    mapRef.current.appendChild(iframe)
-  }, [coordinates, isDrawing]) // Added isDrawing to dependencies
+  }
 
   const saveRoute = () => {
     if (!route) return
@@ -122,30 +244,6 @@ export default function RouteEditorPage() {
     
     updateRoute(updatedRoute)
     alert('Route opgeslagen!')
-  }
-
-  const clearRoute = () => {
-    if (confirm('Weet je zeker dat je de route wilt wissen?')) {
-      setCoordinates([])
-    }
-  }
-
-  const undoLastPoint = () => {
-    if (coordinates.length > 0) {
-      setCoordinates(coordinates.slice(0, -1))
-    }
-  }
-
-  // Simulate adding a point when in drawing mode
-  const addRandomPoint = () => {
-    if (!isDrawing) return
-    
-    const baseLatitude = 50.9167
-    const baseLongitude = 4.0333
-    const randomLat = baseLatitude + (Math.random() - 0.5) * 0.01
-    const randomLng = baseLongitude + (Math.random() - 0.5) * 0.01
-    
-    setCoordinates(prev => [...prev, [randomLat, randomLng]])
   }
 
   if (!route) {
@@ -182,29 +280,32 @@ export default function RouteEditorPage() {
           <CardContent>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  onClick={() => setIsDrawing(!isDrawing)}
-                  className={`${isDrawing ? 'bg-red-500 hover:bg-red-600' : 'bg-sage-light hover:bg-sage-lighter'} text-white`}
-                >
-                  {isDrawing ? 'Stop Tekenen' : 'Start Tekenen'}
-                </Button>
-                {isDrawing && (
+                {!isDrawing ? (
                   <Button
-                    onClick={addRandomPoint}
-                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={startDrawing}
+                    className="bg-sage-light hover:bg-sage-lighter text-white"
                   >
-                    + Punt Toevoegen
+                    Start Tekenen
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={finishRoute}
+                    className="bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Route Klaar
                   </Button>
                 )}
+                
                 <Button
-                  onClick={undoLastPoint}
+                  onClick={removeLastPoint}
                   variant="outline"
-                  className="border-sage-light text-sage-dark hover:bg-sage-lightest"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
                   disabled={coordinates.length === 0}
                 >
-                  <Undo className="w-4 h-4 mr-2" />
-                  Ongedaan maken
+                  Laatste Punt Wissen
                 </Button>
+                
                 <Button
                   onClick={clearRoute}
                   variant="outline"
@@ -212,7 +313,7 @@ export default function RouteEditorPage() {
                   disabled={coordinates.length === 0}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Wissen
+                  Alles Wissen
                 </Button>
               </div>
               
@@ -224,6 +325,7 @@ export default function RouteEditorPage() {
                 <Button
                   onClick={saveRoute}
                   className="bg-sage-light hover:bg-sage-lighter text-white"
+                  disabled={coordinates.length === 0}
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Opslaan
@@ -234,7 +336,14 @@ export default function RouteEditorPage() {
             {isDrawing && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
                 <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
-                <p>Klik op "Punt Toevoegen" om punten aan je route toe te voegen. De kaart heeft een groene rand om aan te geven dat je aan het tekenen bent.</p>
+                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen. De route wordt automatisch via wegen en paden getekend.</p>
+                <p>Klik "Route Klaar" wanneer je klaar bent met tekenen.</p>
+              </div>
+            )}
+
+            {!scriptsLoaded && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 mb-4">
+                <p>Kaart wordt geladen...</p>
               </div>
             )}
           </CardContent>
@@ -244,20 +353,21 @@ export default function RouteEditorPage() {
         <Card className="border-beige bg-white">
           <CardContent className="p-4">
             <div className="space-y-4">
-              {/* Map Container - exact same styling as RouteMap */}
+              {/* Map Container */}
               <div 
                 ref={mapRef}
-                className="h-[600px] bg-sage-lightest rounded-lg"
+                className="h-[600px] bg-sage-lightest rounded-lg border border-sage-light"
+                style={{ minHeight: '600px' }}
               />
               
-              {/* Route visualization overlay */}
+              {/* Route info */}
               {coordinates.length > 0 && (
                 <div className="bg-white rounded-lg p-4 border border-sage-light">
                   <h4 className="font-semibold text-sage-dark mb-2">Route Punten ({coordinates.length}):</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-sm max-h-40 overflow-y-auto">
                     {coordinates.map((coord, index) => (
                       <div key={index} className="text-sage bg-sage-lightest rounded px-2 py-1">
-                        Punt {index + 1}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
+                        {index === 0 ? '🟢 START' : index === coordinates.length - 1 ? '🔴 EINDE' : `📍 Punt ${index + 1}`}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
                       </div>
                     ))}
                   </div>
@@ -267,10 +377,10 @@ export default function RouteEditorPage() {
               {coordinates.length === 0 && (
                 <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
                   <p className="text-sage-dark text-lg mb-4">
-                    {isDrawing ? 'Gebruik "Punt Toevoegen" om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+                    {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
                   </p>
                   <p className="text-sage text-sm">
-                    De kaart toont het gebied rond Nieuwerkerken waar je routes kunt tekenen.
+                    De route wordt automatisch via wegen en paden getekend tussen de punten.
                   </p>
                 </div>
               )}
