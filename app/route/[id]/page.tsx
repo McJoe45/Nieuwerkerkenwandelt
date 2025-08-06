@@ -9,38 +9,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
 import RouteMap from "@/components/route-map"
-import { getRouteById, deleteRoute, isAuthenticated } from "@/lib/auth"
-
-interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-  highlights: string[]
-}
+import { getRouteById, deleteRoute, isAuthenticated, type Route } from "@/lib/auth"
 
 export default function RouteDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [route, setRoute] = useState<Route | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const routeData = getRouteById(params.id as string)
-    setRoute(routeData)
-    setIsLoggedIn(isAuthenticated())
+    const loadRoute = async () => {
+      try {
+        setLoading(true)
+        const routeData = await getRouteById(params.id as string)
+        setRoute(routeData)
+        setIsLoggedIn(isAuthenticated())
+      } catch (error) {
+        console.error('Error loading route:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRoute()
   }, [params.id])
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (route && confirm(`Weet je zeker dat je de route "${route.name}" wilt verwijderen?`)) {
-      deleteRoute(route.id)
-      router.push("/")
+      const success = await deleteRoute(route.id)
+      if (success) {
+        router.push("/")
+      } else {
+        alert("Er is een fout opgetreden bij het verwijderen van de route.")
+      }
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <h1 className="text-2xl font-bold text-sage-dark title-font">Route laden...</h1>
+        </div>
+      </div>
+    )
   }
 
   if (!route) {
@@ -107,7 +121,7 @@ export default function RouteDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  {route.gehuchten.map((gehucht) => (
+                  {route.gehuchten && route.gehuchten.map((gehucht) => (
                     <Badge key={gehucht} variant="secondary" className="bg-sage-lightest text-sage-dark">
                       {gehucht}
                     </Badge>
@@ -142,7 +156,7 @@ export default function RouteDetailPage() {
                   <p className="text-sage leading-relaxed">{route.description}</p>
                 </div>
 
-                {route.highlights.length > 0 && (
+                {route.highlights && route.highlights.length > 0 && (
                   <div>
                     <h3 className="font-semibold text-sage-dark mb-2 title-font">Hoogtepunten</h3>
                     <ul className="list-disc list-inside space-y-1 text-sage">
