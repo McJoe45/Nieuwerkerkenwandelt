@@ -7,36 +7,42 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { getRoutes, deleteRoute, isAuthenticated } from "@/lib/auth"
-
-interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-}
+import { getRoutes, deleteRoute, isAuthenticated, type Route } from "@/lib/supabase"
 
 export default function AdminPage() {
   const router = useRouter()
   const [routes, setRoutes] = useState<Route[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login")
       return
     }
-    setRoutes(getRoutes())
+    
+    const loadRoutes = async () => {
+      try {
+        const routesData = await getRoutes()
+        setRoutes(routesData)
+      } catch (error) {
+        console.error('Error loading routes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRoutes()
   }, [router])
 
-  const handleDelete = (route: Route) => {
+  const handleDelete = async (route: Route) => {
     if (confirm(`Weet je zeker dat je de route "${route.name}" wilt verwijderen?`)) {
-      deleteRoute(route.id)
-      setRoutes(getRoutes())
+      const success = await deleteRoute(route.id)
+      if (success) {
+        const updatedRoutes = await getRoutes()
+        setRoutes(updatedRoutes)
+      } else {
+        alert("Er is een fout opgetreden bij het verwijderen van de route.")
+      }
     }
   }
 
@@ -51,6 +57,25 @@ export default function AdminPage() {
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <header className="bg-sage text-white shadow-xl border-b border-sage/30">
+          <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-cream title-font">Admin Dashboard</h1>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-6 py-12">
+          <div className="text-center">
+            <p className="text-sage-dark text-xl">Routes worden geladen...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
