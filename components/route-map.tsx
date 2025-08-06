@@ -6,7 +6,9 @@ import { LatLngExpression } from "leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 import Link from "next/link"
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Edit } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { isAuthenticated } from "@/lib/auth"
 
 // Fix for default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -26,7 +28,7 @@ interface RouteMapProps {
 }
 
 export default function RouteMap({
-  coordinates,
+  coordinates: initialCoordinates,
   routeName,
   routeId,
   editable = false,
@@ -34,10 +36,48 @@ export default function RouteMap({
   className = "h-96 w-full rounded-lg",
 }: RouteMapProps) {
   const [isClient, setIsClient] = useState(false)
+  const [coordinates, setCoordinates] = useState(initialCoordinates)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
+    setIsLoggedIn(isAuthenticated())
   }, [])
+
+  // Update coordinates when props change
+  useEffect(() => {
+    setCoordinates(initialCoordinates)
+  }, [initialCoordinates])
+
+  // Listen for route updates from editor window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
+        setCoordinates(event.data.coordinates)
+        // Force a re-render by updating the key
+        window.location.reload()
+      }
+    }
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'routes' && routeId) {
+        // Route was updated, refresh coordinates
+        const routes = JSON.parse(event.newValue || '[]')
+        const updatedRoute = routes.find((r: any) => r.id === routeId)
+        if (updatedRoute && updatedRoute.coordinates) {
+          setCoordinates(updatedRoute.coordinates)
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [routeId])
 
   if (!isClient) {
     return (
@@ -63,6 +103,18 @@ export default function RouteMap({
   const centerLng = coordinates.reduce((sum, [, lng]) => sum + lng, 0) / coordinates.length
   const center: LatLngExpression = [centerLat, centerLng]
 
+  const openFullscreenMap = () => {
+    if (!routeId) return
+    const mapUrl = `/map/${routeId}`
+    window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
+  }
+
+  const openRouteEditor = () => {
+    if (!routeId) return
+    const editorUrl = `/route-editor/${routeId}`
+    window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
+  }
+
   return (
     <div className="relative">
       <MapContainer
@@ -70,6 +122,7 @@ export default function RouteMap({
         zoom={13}
         className={className}
         style={{ height: "400px", width: "100%" }}
+        key={`map-${routeId}-${coordinates.length}`} // Force re-render when coordinates change
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -109,17 +162,31 @@ export default function RouteMap({
         )}
       </MapContainer>
       
-      {/* Link to fullscreen map - only show if not in admin mode */}
-      {routeId && !editable && (
-        <div className="mt-4">
-          <Link 
-            href={`/map/${routeId}`}
-            target="_blank"
-            className="text-sage hover:text-sage-light text-sm flex items-center gap-1 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Klik hier om de kaart in een eigen venster te openen
-          </Link>
+      {/* Controls based on mode */}
+      {routeId && (
+        <div className="mt-4 flex items-center justify-between">
+          {/* Regular mode: show fullscreen link */}
+          {!isLoggedIn && (
+            <button
+              onClick={openFullscreenMap}
+              className="text-sage hover:text-sage-light text-sm flex items-center gap-1 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Klik hier om de kaart in een eigen venster te openen
+            </button>
+          )}
+          
+          {/* Admin mode: show edit button */}
+          {isLoggedIn && (
+            <Button
+              onClick={openRouteEditor}
+              size="sm"
+              className="bg-sage-light hover:bg-sage-lighter text-white"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Route Bewerken
+            </Button>
+          )}
         </div>
       )}
     </div>
