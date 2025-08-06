@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp } from 'lucide-react'
+import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp, ArrowUpDown } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
 import { getRoutes, isAuthenticated } from "@/lib/supabase"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Route {
   id: string
@@ -24,6 +25,7 @@ interface Route {
 export default function HomePage() {
   const [routes, setRoutes] = useState<Route[]>([])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [sortBy, setSortBy] = useState<string>("name-asc")
 
   useEffect(() => {
     const loadRoutes = async () => {
@@ -47,6 +49,25 @@ export default function HomePage() {
     }
   }
 
+  const sortRoutes = (routes: Route[], sortType: string): Route[] => {
+    const sortedRoutes = [...routes]
+    
+    switch (sortType) {
+      case "name-asc":
+        return sortedRoutes.sort((a, b) => a.name.localeCompare(b.name))
+      case "name-desc":
+        return sortedRoutes.sort((a, b) => b.name.localeCompare(a.name))
+      case "distance-asc":
+        return sortedRoutes.sort((a, b) => a.distance - b.distance)
+      case "distance-desc":
+        return sortedRoutes.sort((a, b) => b.distance - a.distance)
+      default:
+        return sortedRoutes
+    }
+  }
+
+  const sortedRoutes = sortRoutes(routes, sortBy)
+
   return (
     <div className="min-h-screen bg-cream">
       <Header />
@@ -66,6 +87,25 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* Sorting Section */}
+        <div className="mb-8 flex justify-center">
+          <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-md border border-beige">
+            <ArrowUpDown className="w-5 h-5 text-sage" />
+            <span className="text-sage-dark font-medium">Sorteer op:</span>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-48 border-sage-light">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name-asc">Alfabetisch: A naar Z</SelectItem>
+                <SelectItem value="name-desc">Alfabetisch: Z naar A</SelectItem>
+                <SelectItem value="distance-asc">Afstand: klein naar groot</SelectItem>
+                <SelectItem value="distance-desc">Afstand: groot naar klein</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* CTA Section */}
         {isLoggedIn && (
           <div className="mb-12 text-center">
@@ -83,7 +123,7 @@ export default function HomePage() {
 
         {/* Routes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {routes.map((route) => (
+          {sortedRoutes.map((route) => (
             <Link key={route.id} href={`/route/${route.id}`}>
               <Card className="group hover:shadow-2xl transition-all duration-500 cursor-pointer border-2 border-beige hover:border-sage-light bg-white hover:-translate-y-2 overflow-hidden">
                 <CardHeader className="relative">
@@ -142,7 +182,7 @@ export default function HomePage() {
           ))}
         </div>
 
-        {routes.length === 0 && (
+        {sortedRoutes.length === 0 && (
           <div className="text-center py-20">
             <div className="w-20 h-20 bg-sage-light/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <MapPin className="w-10 h-10 text-sage" />
