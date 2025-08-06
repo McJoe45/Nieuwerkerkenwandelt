@@ -45,18 +45,6 @@ export default function RouteMap({ coordinates, routeName }: RouteMapProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div ref={mapRef} className="h-96 bg-sage-lightest rounded-lg" />
-      <div className="text-sm text-sage space-y-1">
-        <p>
-          <strong>Startpunt:</strong> {coordinates[0][0].toFixed(4)}, {coordinates[0][1].toFixed(4)}
-        </p>
-        <p>
-          <strong>Eindpunt:</strong> {coordinates[coordinates.length - 1][0].toFixed(4)},{" "}
-          {coordinates[coordinates.length - 1][1].toFixed(4)}
-        </p>
-        <p className="text-xs text-sage/80">Klik op de kaart om deze in een nieuw venster te openen</p>
-      </div>
-    </div>
+    <div ref={mapRef} className="h-96 bg-sage-lightest rounded-lg" />
   )
 }
