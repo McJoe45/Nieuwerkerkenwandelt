@@ -15,35 +15,37 @@ export interface Route {
   coordinates: [number, number][]
   difficulty: string
   duration: string
-  highlights: string[]
+  highlights?: string[]
   created_at?: string
-  created_by?: string
+  updated_at?: string
 }
 
 // Authentication functions
-export function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem('isLoggedIn') === 'true'
-}
-
 export function login(username: string, password: string): boolean {
   if (username === 'admin' && password === 'wandelen123') {
-    localStorage.setItem('isLoggedIn', 'true')
+    localStorage.setItem('isAuthenticated', 'true')
+    localStorage.setItem('currentUser', username)
     return true
   }
   return false
 }
 
 export function logout(): void {
-  localStorage.removeItem('isLoggedIn')
+  localStorage.removeItem('isAuthenticated')
+  localStorage.removeItem('currentUser')
 }
 
-export function getCurrentUser(): string | null {
-  if (typeof window === 'undefined') return null
-  return isAuthenticated() ? 'admin' : null
+export function isAuthenticated(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem('isAuthenticated') === 'true'
 }
 
-// Route CRUD functions
+export function getCurrentUser(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem('currentUser') || ''
+}
+
+// Database functions
 export async function getAllRoutes(): Promise<Route[]> {
   try {
     const { data, error } = await supabase
@@ -83,24 +85,23 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function createRoute(route: Omit<Route, 'id' | 'created_at' | 'created_by'>): Promise<boolean> {
+export async function saveRoute(route: Omit<Route, 'id' | 'created_at' | 'updated_at'>): Promise<string | null> {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('routes')
-      .insert([{
-        ...route,
-        created_by: getCurrentUser() || 'admin'
-      }])
+      .insert([route])
+      .select('id')
+      .single()
 
     if (error) {
-      console.error('Error creating route:', error)
-      return false
+      console.error('Error saving route:', error)
+      return null
     }
 
-    return true
+    return data.id
   } catch (error) {
-    console.error('Error creating route:', error)
-    return false
+    console.error('Error saving route:', error)
+    return null
   }
 }
 
@@ -141,3 +142,6 @@ export async function deleteRoute(id: string): Promise<boolean> {
     return false
   }
 }
+
+// Legacy functions for backward compatibility
+export const getRoutes = getAllRoutes
