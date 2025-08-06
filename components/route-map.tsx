@@ -220,20 +220,9 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
   }
 
   const openFullscreenMap = () => {
-    let mapUrl: string
-
-    if (coordinates.length > 0) {
-      const startLat = coordinates[0][0]
-      const startLng = coordinates[0][1]
-      const endLat = coordinates[coordinates.length - 1][0]
-      const endLng = coordinates[coordinates.length - 1][1]
-      const centerLat = (startLat + endLat) / 2
-      const centerLng = (startLng + endLng) / 2
-      mapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLng}&zoom=15#map=15/${centerLat}/${centerLng}`
-    } else {
-      mapUrl = `https://www.openstreetmap.org/?mlat=50.9167&mlon=4.0333&zoom=15#map=15/50.9167/4.0333`
-    }
-
+    if (!routeId) return
+    
+    const mapUrl = `/map/${routeId}`
     window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
   }
 

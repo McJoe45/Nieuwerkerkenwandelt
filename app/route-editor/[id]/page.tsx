@@ -164,190 +164,267 @@ export default function RouteEditorPage() {
     setTotalDistance(Math.round(distance * 10) / 10)
   }
 
+  // Calculate distance between two points in meters
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000 // Earth's radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    return R * c
+  }
+
   const updateRouteOnMap = (waypointList: [number, number][]) => {
     if (!mapInstanceRef.current || !window.L) return
 
-  const L = window.L
+    const L = window.L
 
-  if (routingControlRef.current) {
-    mapInstanceRef.current.removeControl(routingControlRef.current)
-  }
-
-  mapInstanceRef.current.eachLayer((layer: any) => {
-    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-      mapInstanceRef.current.removeLayer(layer)
+    if (routingControlRef.current) {
+      mapInstanceRef.current.removeControl(routingControlRef.current)
     }
-  })
 
-  if (waypointList.length >= 2) {
-    // For walking routes, use a more direct approach
-    // Try multiple routing options and use the shortest one
-    
-    const routingControl = L.Routing.control({
-      waypoints: waypointList.map(coord => L.latLng(coord[0], coord[1])),
-      routeWhileDragging: false,
-      addWaypoints: false,
-      router: L.Routing.osrmv1({
-        serviceUrl: 'https://router.project-osrm.org/route/v1',
-        profile: 'foot', // Use foot profile
-        polylinePrecision: 5,
-        useHints: false,
-        suppressDemoServerWarning: true,
-        timeout: 15 * 1000, // Shorter timeout
-        // More direct routing options
-        overview: 'full',
-        geometries: 'geojson',
-        steps: false,
-        alternatives: true, // Get alternatives and pick shortest
-        continue_straight: false, // Allow turns
-        annotations: false
-      }),
-      createMarker: function(i: number, waypoint: any, n: number) {
-        const isStart = i === 0
-        const isEnd = i === n - 1
-        
-        let markerColor = 'blue'
-        let markerText = `${i + 1}`
-        
-        if (isStart) {
-          markerColor = 'green'
-          markerText = 'START'
-        } else if (isEnd) {
-          markerColor = 'red' 
-          markerText = 'EINDE'
+    mapInstanceRef.current.eachLayer((layer: any) => {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        mapInstanceRef.current.removeLayer(layer)
+      }
+    })
+
+    if (waypointList.length >= 2) {
+      // Check if points are very close (less than 50 meters)
+      let useDirectRoute = false
+      for (let i = 1; i < waypointList.length; i++) {
+        const distance = calculateDistance(
+          waypointList[i-1][0], waypointList[i-1][1],
+          waypointList[i][0], waypointList[i][1]
+        )
+        if (distance < 50) {
+          useDirectRoute = true
+          break
         }
+      }
 
-        return L.marker(waypoint.latLng, {
-          draggable: false,
-          icon: L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="background-color: ${markerColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerText}</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+      if (useDirectRoute) {
+        console.log('Points are very close, using direct route')
+        const interpolatedRoute = createInterpolatedRoute(waypointList)
+        
+        const polyline = L.polyline(interpolatedRoute, {
+          color: 'blue',
+          weight: 4,
+          opacity: 0.8
+        }).addTo(mapInstanceRef.current)
+        
+        setRouteCoordinates(interpolatedRoute)
+        
+        // Calculate distance
+        let distance = 0
+        for (let i = 1; i < interpolatedRoute.length; i++) {
+          const lat1 = interpolatedRoute[i - 1][0]
+          const lon1 = interpolatedRoute[i - 1][1]
+          const lat2 = interpolatedRoute[i][0]
+          const lon2 = interpolatedRoute[i][1]
+          
+          const R = 6371
+          const dLat = (lat2 - lat1) * Math.PI / 180
+          const dLon = (lon2 - lon1) * Math.PI / 180
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2)
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+          distance += R * c
+        }
+        setTotalDistance(Math.round(distance * 10) / 10)
+        
+        // Add markers
+        addMarkersToMap(waypointList)
+        
+        console.log('Using direct route with', interpolatedRoute.length, 'points')
+        return
+      }
+
+      // Use routing for longer distances
+      const routingControl = L.Routing.control({
+        waypoints: waypointList.map(coord => L.latLng(coord[0], coord[1])),
+        routeWhileDragging: false,
+        addWaypoints: false,
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1',
+          profile: 'foot',
+          polylinePrecision: 5,
+          useHints: false,
+          suppressDemoServerWarning: true,
+          timeout: 10 * 1000,
+          // Force shortest route settings
+          overview: 'simplified', // Use simplified overview for shorter routes
+          geometries: 'geojson',
+          steps: false,
+          alternatives: false, // Don't use alternatives to avoid confusion
+          continue_straight: true, // Prefer straight routes
+          annotations: false
+        }),
+        createMarker: function(i: number, waypoint: any, n: number) {
+          const isStart = i === 0
+          const isEnd = i === n - 1
+          
+          let markerColor = 'blue'
+          let markerText = `${i + 1}`
+          
+          if (isStart) {
+            markerColor = 'green'
+            markerText = 'START'
+          } else if (isEnd) {
+            markerColor = 'red' 
+            markerText = 'EINDE'
+          }
+
+          return L.marker(waypoint.latLng, {
+            draggable: false,
+            icon: L.divIcon({
+              className: 'custom-marker',
+              html: `<div style="background-color: ${markerColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerText}</div>`,
+              iconSize: [30, 30],
+              iconAnchor: [15, 15]
+            })
           })
-        })
-      },
-      lineOptions: {
-        styles: [{ color: '#ff0000', weight: 4, opacity: 0.8 }]
-      },
-      show: false,
-      collapsible: false,
-      fitSelectedRoutes: true
-    }).on('routesfound', function(e: any) {
-      const routes = e.routes
-      
-      // Pick the shortest route from alternatives
-      let shortestRoute = routes[0]
-      for (let route of routes) {
-        if (route.summary.totalDistance < shortestRoute.summary.totalDistance) {
-          shortestRoute = route
-        }
-      }
-      
-      const summary = shortestRoute.summary
-      const distanceKm = Math.round(summary.totalDistance / 100) / 10
-      setTotalDistance(distanceKm)
-      
-      const detailedCoords = shortestRoute.coordinates.map((coord: any) => [coord.lat, coord.lng])
-      setRouteCoordinates(detailedCoords)
-      
-      console.log('Route found:', {
-        waypoints: waypointList.length,
-        detailedCoords: detailedCoords.length,
-        distance: distanceKm,
-        alternatives: routes.length
-      })
-    }).on('routingerror', function(e: any) {
-      console.error('OSRM routing failed, trying direct interpolation:', e)
-      
-      // Fallback: Create a more intelligent interpolated route
-      const interpolatedRoute = createInterpolatedRoute(waypointList)
-      
-      const polyline = L.polyline(interpolatedRoute, {
-        color: 'orange',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: '5, 5'
-      }).addTo(mapInstanceRef.current)
-      
-      setRouteCoordinates(interpolatedRoute)
-      
-      // Calculate distance
-      let distance = 0
-      for (let i = 1; i < interpolatedRoute.length; i++) {
-        const lat1 = interpolatedRoute[i - 1][0]
-        const lon1 = interpolatedRoute[i - 1][1]
-        const lat2 = interpolatedRoute[i][0]
-        const lon2 = interpolatedRoute[i][1]
+        },
+        lineOptions: {
+          styles: [{ color: '#ff0000', weight: 4, opacity: 0.8 }]
+        },
+        show: false,
+        collapsible: false,
+        fitSelectedRoutes: true
+      }).on('routesfound', function(e: any) {
+        const routes = e.routes
+        const route = routes[0]
+        const summary = route.summary
+        const distanceKm = Math.round(summary.totalDistance / 100) / 10
+        setTotalDistance(distanceKm)
         
-        const R = 6371
-        const dLat = (lat2 - lat1) * Math.PI / 180
-        const dLon = (lon2 - lon1) * Math.PI / 180
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2)
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-        distance += R * c
-      }
-      setTotalDistance(Math.round(distance * 10) / 10)
-      
-      console.log('Using interpolated route with', interpolatedRoute.length, 'points')
-    }).addTo(mapInstanceRef.current)
+        const detailedCoords = route.coordinates.map((coord: any) => [coord.lat, coord.lng])
+        setRouteCoordinates(detailedCoords)
+        
+        console.log('OSRM route found:', {
+          waypoints: waypointList.length,
+          detailedCoords: detailedCoords.length,
+          distance: distanceKm
+        })
+      }).on('routingerror', function(e: any) {
+        console.error('OSRM routing failed, using direct route:', e)
+        
+        const interpolatedRoute = createInterpolatedRoute(waypointList)
+        
+        const polyline = L.polyline(interpolatedRoute, {
+          color: 'orange',
+          weight: 4,
+          opacity: 0.8,
+          dashArray: '5, 5'
+        }).addTo(mapInstanceRef.current)
+        
+        setRouteCoordinates(interpolatedRoute)
+        
+        // Calculate distance
+        let distance = 0
+        for (let i = 1; i < interpolatedRoute.length; i++) {
+          const lat1 = interpolatedRoute[i - 1][0]
+          const lon1 = interpolatedRoute[i - 1][1]
+          const lat2 = interpolatedRoute[i][0]
+          const lon2 = interpolatedRoute[i][1]
+          
+          const R = 6371
+          const dLat = (lat2 - lat1) * Math.PI / 180
+          const dLon = (lon2 - lon1) * Math.PI / 180
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2)
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+          distance += R * c
+        }
+        setTotalDistance(Math.round(distance * 10) / 10)
+        
+        // Add markers
+        addMarkersToMap(waypointList)
+        
+        console.log('Using fallback direct route with', interpolatedRoute.length, 'points')
+      }).addTo(mapInstanceRef.current)
 
-    routingControlRef.current = routingControl
-  } else if (waypointList.length === 1) {
-    L.marker([waypointList[0][0], waypointList[0][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
-      })
-    }).addTo(mapInstanceRef.current)
-  }
-}
-
-// Helper function to create a more intelligent interpolated route
-const createInterpolatedRoute = (waypoints: [number, number][]): [number, number][] => {
-  if (waypoints.length < 2) return waypoints
-  
-  const interpolatedPoints: [number, number][] = []
-  
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const start = waypoints[i]
-    const end = waypoints[i + 1]
-    
-    interpolatedPoints.push(start)
-    
-    // Calculate distance between points
-    const lat1 = start[0] * Math.PI / 180
-    const lon1 = start[1] * Math.PI / 180
-    const lat2 = end[0] * Math.PI / 180
-    const lon2 = end[1] * Math.PI / 180
-    
-    const dLat = lat2 - lat1
-    const dLon = lon2 - lon1
-    
-    const distance = Math.sqrt(dLat * dLat + dLon * dLon)
-    
-    // Add intermediate points for longer segments (more than ~100m)
-    if (distance > 0.001) {
-      const steps = Math.max(2, Math.floor(distance / 0.0005)) // More points for longer distances
-      
-      for (let step = 1; step < steps; step++) {
-        const ratio = step / steps
-        const interpLat = start[0] + (end[0] - start[0]) * ratio
-        const interpLon = start[1] + (end[1] - start[1]) * ratio
-        interpolatedPoints.push([interpLat, interpLon])
-      }
+      routingControlRef.current = routingControl
+    } else if (waypointList.length === 1) {
+      L.marker([waypointList[0][0], waypointList[0][1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapInstanceRef.current)
     }
   }
-  
-  // Add the final point
-  interpolatedPoints.push(waypoints[waypoints.length - 1])
-  
-  return interpolatedPoints
-}
+
+  const addMarkersToMap = (waypointList: [number, number][]) => {
+    if (!mapInstanceRef.current || !window.L) return
+    
+    const L = window.L
+    
+    waypointList.forEach((coord, index) => {
+      const isStart = index === 0
+      const isEnd = index === waypointList.length - 1
+      
+      let markerColor = 'blue'
+      let markerText = `${index + 1}`
+      
+      if (isStart) {
+        markerColor = 'green'
+        markerText = 'START'
+      } else if (isEnd) {
+        markerColor = 'red' 
+        markerText = 'EINDE'
+      }
+
+      L.marker([coord[0], coord[1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: `<div style="background-color: ${markerColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerText}</div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapInstanceRef.current)
+    })
+  }
+
+  // Helper function to create a more intelligent interpolated route
+  const createInterpolatedRoute = (waypoints: [number, number][]): [number, number][] => {
+    if (waypoints.length < 2) return waypoints
+    
+    const interpolatedPoints: [number, number][] = []
+    
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const start = waypoints[i]
+      const end = waypoints[i + 1]
+      
+      interpolatedPoints.push(start)
+      
+      // Calculate distance between points
+      const distance = calculateDistance(start[0], start[1], end[0], end[1])
+      
+      // Add intermediate points for longer segments (more than 10m)
+      if (distance > 10) {
+        const steps = Math.max(2, Math.floor(distance / 5)) // Point every 5 meters
+        
+        for (let step = 1; step < steps; step++) {
+          const ratio = step / steps
+          const interpLat = start[0] + (end[0] - start[0]) * ratio
+          const interpLon = start[1] + (end[1] - start[1]) * ratio
+          interpolatedPoints.push([interpLat, interpLon])
+        }
+      }
+    }
+    
+    // Add the final point
+    interpolatedPoints.push(waypoints[waypoints.length - 1])
+    
+    return interpolatedPoints
+  }
 
   // Handle map clicks when drawing
   useEffect(() => {
@@ -542,8 +619,10 @@ const createInterpolatedRoute = (waypoints: [number, number][]): [number, number
             {isDrawing && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
                 <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
-                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen. Probeer punten dicht bij wegen te plaatsen.</p>
-                <p>Als routing niet lukt, wordt een rechte lijn getoond (oranje stippellijn).</p>
+                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen.</p>
+                <p><strong>Blauwe lijn</strong>: Directe route (punten &lt; 50m apart)</p>
+                <p><strong>Rode lijn</strong>: Via wegen (punten &gt; 50m apart)</p>
+                <p><strong>Oranje stippellijn</strong>: Fallback als routing faalt</p>
               </div>
             )}
 
@@ -594,7 +673,7 @@ const createInterpolatedRoute = (waypoints: [number, number][]): [number, number
                     {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Nieuwe Route Tekenen" om te beginnen'}
                   </p>
                   <p className="text-sage text-sm">
-                    Plaats punten dicht bij wegen voor de beste routing resultaten.
+                    Voor korte afstanden (&lt; 50m) wordt een directe route gebruikt.
                   </p>
                 </div>
               )}
