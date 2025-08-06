@@ -22,20 +22,31 @@ export interface Route {
 
 // Authentication functions
 export function login(username: string, password: string): boolean {
-  if (username === 'admin' && password === 'wandelen2024') {
-    localStorage.setItem('isLoggedIn', 'true')
+  if (username === 'admin' && password === 'wandelen123') {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('isLoggedIn', 'true')
+      localStorage.setItem('currentUser', username)
+    }
     return true
   }
   return false
 }
 
 export function logout(): void {
-  localStorage.removeItem('isLoggedIn')
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('currentUser')
+  }
 }
 
 export function isAuthenticated(): boolean {
   if (typeof window === 'undefined') return false
   return localStorage.getItem('isLoggedIn') === 'true'
+}
+
+export function getCurrentUser(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem('currentUser') || ''
 }
 
 // Supabase route functions
@@ -78,13 +89,13 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function saveRoute(route: Omit<Route, 'id' | 'created_at'>): Promise<Route | null> {
+export async function addRoute(route: Omit<Route, 'id' | 'created_at'>): Promise<Route | null> {
   try {
     const { data, error } = await supabase
       .from('routes')
       .insert([{
         ...route,
-        created_by: 'admin'
+        created_by: getCurrentUser()
       }])
       .select()
       .single()
@@ -101,12 +112,22 @@ export async function saveRoute(route: Omit<Route, 'id' | 'created_at'>): Promis
   }
 }
 
-export async function updateRoute(id: string, route: Partial<Route>): Promise<Route | null> {
+export async function updateRoute(updatedRoute: Route): Promise<Route | null> {
   try {
     const { data, error } = await supabase
       .from('routes')
-      .update(route)
-      .eq('id', id)
+      .update({
+        name: updatedRoute.name,
+        gehuchten: updatedRoute.gehuchten,
+        distance: updatedRoute.distance,
+        muddy: updatedRoute.muddy,
+        description: updatedRoute.description,
+        coordinates: updatedRoute.coordinates,
+        difficulty: updatedRoute.difficulty,
+        duration: updatedRoute.duration,
+        highlights: updatedRoute.highlights
+      })
+      .eq('id', updatedRoute.id)
       .select()
       .single()
 
@@ -140,7 +161,3 @@ export async function deleteRoute(id: string): Promise<boolean> {
     return false
   }
 }
-
-// Legacy functions for backward compatibility
-export const getAllRoutes = getRoutes
-export const addRoute = saveRoute
