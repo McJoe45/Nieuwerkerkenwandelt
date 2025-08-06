@@ -2,12 +2,26 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { MapPin, Ruler, Clock, Droplets, Plus } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { MapPin, Clock, Users, Plus } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import Header from "@/components/header"
-import { getRoutes, isAuthenticated, type Route } from "@/lib/auth"
+import { getAllRoutes, isAuthenticated } from "@/lib/auth"
+
+interface Route {
+  id: string
+  name: string
+  description: string
+  distance: string
+  duration: string
+  difficulty: 'Gemakkelijk' | 'Matig' | 'Moeilijk'
+  highlights: string[]
+  gehuchten: string[]
+  coordinates: [number, number][]
+  createdAt: string
+  createdBy: string
+}
 
 export default function HomePage() {
   const [routes, setRoutes] = useState<Route[]>([])
@@ -15,29 +29,40 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadRoutes = async () => {
-      try {
-        setLoading(true)
-        const routesData = await getRoutes()
-        setRoutes(routesData)
-        setIsLoggedIn(isAuthenticated())
-      } catch (error) {
-        console.error('Error loading routes:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
+    setIsLoggedIn(isAuthenticated())
     loadRoutes()
   }, [])
+
+  const loadRoutes = async () => {
+    try {
+      setLoading(true)
+      const routesData = await getAllRoutes()
+      setRoutes(routesData)
+    } catch (error) {
+      console.error('Error loading routes:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'Gemakkelijk': return 'bg-green-100 text-green-800 border-green-200'
+      case 'Matig': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'Moeilijk': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-cream">
         <Header />
-        <div className="container mx-auto px-4 py-8 text-center">
-          <h1 className="text-3xl font-bold text-sage-dark title-font mb-4">Routes laden...</h1>
-        </div>
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <p className="text-sage-dark">Routes worden geladen...</p>
+          </div>
+        </main>
       </div>
     )
   }
@@ -45,95 +70,118 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-cream">
       <Header />
-
+      
       <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-sage-dark title-font mb-2">
-              Wandelroutes Nieuwerkerken
-            </h1>
-            <p className="text-sage text-lg">
-              Ontdek de mooiste wandelpaden in en rond Nieuwerkerken
-            </p>
-          </div>
-
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-6xl font-bold text-sage-dark mb-4">
+            Wandelroutes Nieuwerkerken
+          </h1>
+          <p className="text-xl text-sage mb-8 max-w-2xl mx-auto">
+            Ontdek de mooiste wandelpaden door onze prachtige gemeente. 
+            Van rustige natuurwandelingen tot uitdagende routes door heuvels en bossen.
+          </p>
+          
           {isLoggedIn && (
             <Link href="/create-route">
-              <Button className="bg-sage-light hover:bg-sage-lighter text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Nieuwe Route
+              <Button size="lg" className="bg-sage hover:bg-sage-light text-white">
+                <Plus className="w-5 h-5 mr-2" />
+                Nieuwe Route Toevoegen
               </Button>
             </Link>
           )}
         </div>
 
-        {routes.length === 0 ? (
+        {/* Routes Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {routes.map((route) => (
+            <Card key={route.id} className="bg-white border-sage-light hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-sage-dark text-xl">{route.name}</CardTitle>
+                  <Badge className={getDifficultyColor(route.difficulty)}>
+                    {route.difficulty}
+                  </Badge>
+                </div>
+                <CardDescription className="text-sage">
+                  {route.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 text-sm text-sage-dark">
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    <span>{route.distance}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>{route.duration}</span>
+                  </div>
+                </div>
+
+                {route.gehuchten && route.gehuchten.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sage-dark mb-2 flex items-center gap-1">
+                      <Users className="w-4 h-4" />
+                      Gehuchten
+                    </h4>
+                    <div className="flex flex-wrap gap-1">
+                      {route.gehuchten.map((gehucht, index) => (
+                        <Badge key={index} variant="outline" className="text-xs border-sage-light text-sage">
+                          {gehucht}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {route.highlights && route.highlights.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sage-dark mb-2">Hoogtepunten</h4>
+                    <ul className="text-sm text-sage space-y-1">
+                      {route.highlights.slice(0, 3).map((highlight, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-sage-light mt-1">•</span>
+                          <span>{highlight}</span>
+                        </li>
+                      ))}
+                      {route.highlights.length > 3 && (
+                        <li className="text-sage-light text-xs">
+                          +{route.highlights.length - 3} meer...
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                <Link href={`/route/${route.id}`}>
+                  <Button className="w-full bg-sage-light hover:bg-sage text-white">
+                    Route Bekijken
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {routes.length === 0 && (
           <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-sage-dark mb-4">Geen routes gevonden</h2>
-            <p className="text-sage mb-6">Er zijn nog geen wandelroutes toegevoegd.</p>
+            <p className="text-sage-dark text-lg mb-4">Nog geen routes beschikbaar.</p>
             {isLoggedIn && (
               <Link href="/create-route">
-                <Button className="bg-sage-light hover:bg-sage-lighter text-white">
-                  <Plus className="w-4 h-4 mr-2" />
+                <Button className="bg-sage hover:bg-sage-light text-white">
+                  <Plus className="w-5 h-5 mr-2" />
                   Eerste Route Toevoegen
                 </Button>
               </Link>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {routes.map((route) => (
-              <Card key={route.id} className="border-beige bg-white hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-sage-dark flex items-center gap-2 title-font">
-                    <MapPin className="w-5 h-5" />
-                    {route.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-1">
-                    {route.gehuchten && route.gehuchten.map((gehucht) => (
-                      <Badge key={gehucht} variant="secondary" className="bg-sage-lightest text-sage-dark text-xs">
-                        {gehucht}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  <p className="text-sage text-sm line-clamp-3">{route.description}</p>
-
-                  <div className="flex items-center justify-between text-sm text-sage">
-                    <div className="flex items-center gap-1">
-                      <Ruler className="w-4 h-4" />
-                      <span>{route.distance} km</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{route.duration}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="border-sage-light text-sage-dark">
-                      {route.difficulty}
-                    </Badge>
-                    {route.muddy && (
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-800">
-                        <Droplets className="w-3 h-3 mr-1" />
-                        Modder
-                      </Badge>
-                    )}
-                  </div>
-
-                  <Link href={`/route/${route.id}`}>
-                    <Button className="w-full bg-sage-light hover:bg-sage-lighter text-white">
-                      Bekijk Route
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         )}
+
+        {/* Footer */}
+        <footer className="mt-16 text-center text-sage">
+          <p>&copy; 2024 Gemeente Nieuwerkerken. Alle rechten voorbehouden.</p>
+        </footer>
       </main>
     </div>
   )

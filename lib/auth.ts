@@ -1,30 +1,87 @@
-"use client"
+// Simple authentication and route management
+interface User {
+  username: string;
+  password: string;
+}
 
+interface Route {
+  id: string;
+  name: string;
+  description: string;
+  distance: string;
+  duration: string;
+  difficulty: 'Gemakkelijk' | 'Matig' | 'Moeilijk';
+  highlights: string[];
+  gehuchten: string[];
+  coordinates: [number, number][];
+  createdAt: string;
+  createdBy: string;
+}
+
+// Import Supabase
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+let supabase: any = null
 
-export interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-  highlights: string[]
-  created_at?: string
-  updated_at?: string
+// Initialize Supabase client
+function getSupabase() {
+  if (!supabase && typeof window !== 'undefined') {
+    supabase = createClient(supabaseUrl, supabaseKey)
+  }
+  return supabase
 }
 
-// Routes functions
-export async function getRoutes(): Promise<Route[]> {
+// Default users
+const users: User[] = [
+  { username: 'admin', password: 'admin123' },
+  { username: 'editor', password: 'editor123' }
+];
+
+export function login(username: string, password: string): boolean {
+  const user = users.find(u => u.username === username && u.password === password);
+  if (user) {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentUser', username);
+      localStorage.setItem('isAuthenticated', 'true');
+    }
+    return true;
+  }
+  return false;
+}
+
+export function logout(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('isAuthenticated');
+  }
+}
+
+export function isAuthenticated(): boolean {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('isAuthenticated') === 'true';
+  }
+  return false;
+}
+
+export function getCurrentUser(): string {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('currentUser') || '';
+  }
+  return '';
+}
+
+// Database functions
+export async function getAllRoutes(): Promise<Route[]> {
   try {
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error('Supabase not initialized')
+      return []
+    }
+
     const { data, error } = await supabase
       .from('routes')
       .select('*')
@@ -37,13 +94,19 @@ export async function getRoutes(): Promise<Route[]> {
 
     return data || []
   } catch (error) {
-    console.error('Error in getRoutes:', error)
+    console.error('Error in getAllRoutes:', error)
     return []
   }
 }
 
 export async function getRouteById(id: string): Promise<Route | null> {
   try {
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error('Supabase not initialized')
+      return null
+    }
+
     const { data, error } = await supabase
       .from('routes')
       .select('*')
@@ -62,59 +125,71 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function addRoute(route: Omit<Route, 'id' | 'created_at' | 'updated_at'>): Promise<Route | null> {
+export async function saveRoute(route: Omit<Route, 'id' | 'createdAt' | 'createdBy'>): Promise<string | null> {
   try {
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error('Supabase not initialized')
+      return null
+    }
+
+    const newRoute = {
+      ...route,
+      created_at: new Date().toISOString(),
+      created_by: getCurrentUser()
+    }
+
     const { data, error } = await supabase
       .from('routes')
-      .insert([route])
+      .insert([newRoute])
       .select()
       .single()
 
     if (error) {
-      console.error('Error adding route:', error)
+      console.error('Error saving route:', error)
       return null
     }
 
-    return data
+    return data.id
   } catch (error) {
-    console.error('Error in addRoute:', error)
+    console.error('Error in saveRoute:', error)
     return null
   }
 }
 
-export async function updateRoute(route: Route): Promise<Route | null> {
+export async function updateRoute(id: string, route: Partial<Route>): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error('Supabase not initialized')
+      return false
+    }
+
+    const { error } = await supabase
       .from('routes')
-      .update({
-        name: route.name,
-        gehuchten: route.gehuchten,
-        distance: route.distance,
-        muddy: route.muddy,
-        description: route.description,
-        coordinates: route.coordinates,
-        difficulty: route.difficulty,
-        duration: route.duration,
-        highlights: route.highlights,
-      })
-      .eq('id', route.id)
-      .select()
-      .single()
+      .update(route)
+      .eq('id', id)
 
     if (error) {
       console.error('Error updating route:', error)
-      return null
+      return false
     }
 
-    return data
+    return true
   } catch (error) {
     console.error('Error in updateRoute:', error)
-    return null
+    return false
   }
 }
 
 export async function deleteRoute(id: string): Promise<boolean> {
   try {
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error('Supabase not initialized')
+      return false
+    }
+
     const { error } = await supabase
       .from('routes')
       .delete()
@@ -132,36 +207,11 @@ export async function deleteRoute(id: string): Promise<boolean> {
   }
 }
 
-// Authentication functions (keeping simple for now)
-export function login(username: string, password: string): boolean {
-  // Simple demo authentication - in production you'd use Supabase Auth
-  if (username === "admin" && password === "wandelen123") {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("username", username)
-    }
-    return true
+// Keep backward compatibility for synchronous calls (fallback to localStorage)
+export function getRouteByIdSync(id: string): Route | null {
+  if (typeof window !== 'undefined') {
+    const routes = JSON.parse(localStorage.getItem('routes') || '[]');
+    return routes.find((route: Route) => route.id === id) || null;
   }
-  return false
-}
-
-export function logout(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("isLoggedIn")
-    localStorage.removeItem("username")
-  }
-}
-
-export function isAuthenticated(): boolean {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("isLoggedIn") === "true"
-  }
-  return false
-}
-
-export function getCurrentUser(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("username") || ""
-  }
-  return ""
+  return null;
 }
