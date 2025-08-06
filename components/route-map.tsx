@@ -1,201 +1,127 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ExternalLink, Edit } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { isAuthenticated } from "@/lib/auth"
+import { useState, useEffect } from "react"
+import { MapContainer, TileLayer, Polyline, Marker, Popup } from "react-leaflet"
+import { LatLngExpression } from "leaflet"
+import "leaflet/dist/leaflet.css"
+import L from "leaflet"
+import Link from "next/link"
+import { ExternalLink } from 'lucide-react'
+
+// Fix for default markers
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+})
 
 interface RouteMapProps {
   coordinates: [number, number][]
-  routeName: string
+  routeName?: string
   routeId?: string
+  editable?: boolean
+  onCoordinatesChange?: (coords: [number, number][]) => void
+  className?: string
 }
 
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
-export default function RouteMap({ coordinates: initialCoordinates, routeName, routeId }: RouteMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [coordinates, setCoordinates] = useState(initialCoordinates)
-  const [scriptsLoaded, setScriptsLoaded] = useState(false)
+export default function RouteMap({
+  coordinates,
+  routeName,
+  routeId,
+  editable = false,
+  onCoordinatesChange,
+  className = "h-96 w-full rounded-lg",
+}: RouteMapProps) {
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    setIsLoggedIn(isAuthenticated())
+    setIsClient(true)
   }, [])
 
-  // Load Leaflet scripts
-  useEffect(() => {
-    const loadScripts = async () => {
-      if (typeof window !== 'undefined' && !window.L) {
-        const leafletCSS = document.createElement('link')
-        leafletCSS.rel = 'stylesheet'
-        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-        document.head.appendChild(leafletCSS)
-
-        const leafletJS = document.createElement('script')
-        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-        leafletJS.onload = () => {
-          setScriptsLoaded(true)
-        }
-        document.body.appendChild(leafletJS)
-      } else if (window.L) {
-        setScriptsLoaded(true)
-      }
-    }
-
-    loadScripts()
-  }, [])
-
-  // Initialize map
-  useEffect(() => {
-    if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
-
-    const L = window.L
-    const map = L.map(mapRef.current).setView([50.9167, 4.0333], 15)
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map)
-
-    mapInstanceRef.current = map
-    displayRoute(coordinates)
-  }, [scriptsLoaded])
-
-  // Update route display when coordinates change
-  useEffect(() => {
-    if (mapInstanceRef.current && scriptsLoaded) {
-      displayRoute(coordinates)
-    }
-  }, [coordinates, scriptsLoaded])
-
-  const displayRoute = (coords: [number, number][]) => {
-    if (!mapInstanceRef.current || !window.L) return
-
-    const L = window.L
-
-    // Clear existing layers
-    mapInstanceRef.current.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-        mapInstanceRef.current.removeLayer(layer)
-      }
-    })
-
-    if (coords.length === 0) {
-      // No route, show default Nieuwerkerken location
-      mapInstanceRef.current.setView([50.9167, 4.0333], 15)
-      L.marker([50.9167, 4.0333], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: '<div style="background-color: blue; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📍</div>',
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
-        })
-      }).addTo(mapInstanceRef.current)
-      return
-    }
-
-    if (coords.length === 1) {
-      // Single point
-      mapInstanceRef.current.setView([coords[0][0], coords[0][1]], 16)
-      L.marker([coords[0][0], coords[0][1]], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-          iconSize: [25, 25],
-          iconAnchor: [12, 12]
-        })
-      }).addTo(mapInstanceRef.current)
-      return
-    }
-
-    // Multiple points - draw the route
-    const polyline = L.polyline(coords, {
-      color: 'red',
-      weight: 4,
-      opacity: 0.8
-    }).addTo(mapInstanceRef.current)
-
-    // Add start marker
-    L.marker([coords[0][0], coords[0][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-        iconSize: [25, 25],
-        iconAnchor: [12, 12]
-      })
-    }).addTo(mapInstanceRef.current)
-
-    // Add end marker
-    L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: red; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">EINDE</div>',
-        iconSize: [25, 25],
-        iconAnchor: [12, 12]
-      })
-    }).addTo(mapInstanceRef.current)
-
-    // Fit map to route bounds with padding
-    mapInstanceRef.current.fitBounds(polyline.getBounds(), { 
-      padding: [20, 20],
-      maxZoom: 16
-    })
-
-    console.log('Route displayed:', coords.length, 'points')
-  }
-
-  const openFullscreenMap = () => {
-    if (!routeId) return
-    
-    const mapUrl = `/map/${routeId}`
-    window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
-  }
-
-  const openRouteEditor = () => {
-    if (!routeId) return
-    
-    const editorUrl = `/route-editor/${routeId}`
-    window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
-  }
-
-  if (!scriptsLoaded) {
+  if (!isClient) {
     return (
-      <div className="space-y-4">
-        <div className="h-96 bg-sage-lightest rounded-lg flex items-center justify-center">
-          <p className="text-sage-dark">Kaart wordt geladen...</p>
-        </div>
+      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
+        <p className="text-gray-500">Kaart wordt geladen...</p>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-4">
-      <div ref={mapRef} className="h-96 bg-sage-lightest rounded-lg border border-sage-light" />
-      <div className="flex items-center justify-between">
-        <button
-          onClick={openFullscreenMap}
-          className="text-sage hover:text-sage-light transition-colors duration-200 text-sm flex items-center gap-2"
-        >
-          <ExternalLink className="w-4 h-4" />
-          Klik hier om de kaart in een eigen venster te openen
-        </button>
-        
-        {isLoggedIn && routeId && (
-          <Button
-            onClick={openRouteEditor}
-            size="sm"
-            className="bg-sage-light hover:bg-sage-lighter text-white"
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            Route Bewerken
-          </Button>
-        )}
+  if (!coordinates || coordinates.length === 0) {
+    return (
+      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
+        <p className="text-gray-500">Geen route gegevens beschikbaar</p>
       </div>
+    )
+  }
+
+  // Convert coordinates to LatLngExpression format
+  const pathCoordinates: LatLngExpression[] = coordinates.map(([lat, lng]) => [lat, lng])
+
+  // Calculate center point
+  const centerLat = coordinates.reduce((sum, [lat]) => sum + lat, 0) / coordinates.length
+  const centerLng = coordinates.reduce((sum, [, lng]) => sum + lng, 0) / coordinates.length
+  const center: LatLngExpression = [centerLat, centerLng]
+
+  return (
+    <div className="relative">
+      <MapContainer
+        center={center}
+        zoom={13}
+        className={className}
+        style={{ height: "400px", width: "100%" }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        {/* Route line */}
+        <Polyline
+          positions={pathCoordinates}
+          color="red"
+          weight={4}
+          opacity={0.8}
+        />
+        
+        {/* Start marker */}
+        {coordinates.length > 0 && (
+          <Marker position={[coordinates[0][0], coordinates[0][1]]}>
+            <Popup>
+              <div className="text-center">
+                <strong>Start</strong>
+                {routeName && <div>{routeName}</div>}
+              </div>
+            </Popup>
+          </Marker>
+        )}
+        
+        {/* End marker (if different from start) */}
+        {coordinates.length > 1 && (
+          <Marker position={[coordinates[coordinates.length - 1][0], coordinates[coordinates.length - 1][1]]}>
+            <Popup>
+              <div className="text-center">
+                <strong>Einde</strong>
+                {routeName && <div>{routeName}</div>}
+              </div>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+      
+      {/* Link to fullscreen map - only show if not in admin mode */}
+      {routeId && !editable && (
+        <div className="mt-4">
+          <Link 
+            href={`/map/${routeId}`}
+            target="_blank"
+            className="text-sage hover:text-sage-light text-sm flex items-center gap-1 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Klik hier om de kaart in een eigen venster te openen
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
