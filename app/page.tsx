@@ -1,33 +1,33 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp } from "lucide-react"
+import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { getRoutes, isAuthenticated } from "@/lib/auth"
-
-interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-}
+import { getRoutes, isAuthenticated, type Route } from "@/lib/auth"
 
 export default function HomePage() {
   const [routes, setRoutes] = useState<Route[]>([])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setRoutes(getRoutes())
-    setIsLoggedIn(isAuthenticated())
+    const loadRoutes = async () => {
+      try {
+        const routesData = await getRoutes()
+        setRoutes(routesData)
+        setIsLoggedIn(isAuthenticated())
+      } catch (error) {
+        console.error('Error loading routes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRoutes()
   }, [])
 
   const getDifficultyColor = (difficulty: string) => {
@@ -41,6 +41,19 @@ export default function HomePage() {
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Header />
+        <main className="container mx-auto px-6 py-12">
+          <div className="text-center">
+            <p className="text-sage-dark text-xl">Routes worden geladen...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (

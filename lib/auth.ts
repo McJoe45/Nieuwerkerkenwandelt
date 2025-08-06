@@ -155,3 +155,9 @@ export function deleteRoute(id: string): void {
     localStorage.setItem("routes", JSON.stringify(filteredRoutes))
   }
 }
+
+// Re-export everything from supabase for backward compatibility
+export {
+  type,
+  Route
+} from './supabase'

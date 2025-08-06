@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, MapPin, Plus, X } from "lucide-react"
+import { ArrowLeft, Save, MapPin, Plus, X } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +19,7 @@ import { addRoute, isAuthenticated } from "@/lib/auth"
 export default function CreateRoutePage() {
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     gehuchten: [""],
@@ -38,27 +39,39 @@ export default function CreateRoutePage() {
     }
   }, [router])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
 
-    const route = {
-      id: Date.now().toString(),
-      name: formData.name,
-      gehuchten: formData.gehuchten.filter((g) => g.trim() !== ""),
-      distance: Number.parseFloat(formData.distance),
-      muddy: formData.muddy,
-      description: formData.description,
-      difficulty: formData.difficulty,
-      duration: formData.duration,
-      highlights: formData.highlights.filter((h) => h.trim() !== ""),
-      coordinates: [
-        [50.9167, 4.0333],
-        [50.92, 4.04],
-      ] as [number, number][], // Default coordinates for Nieuwerkerken
+    try {
+      const route = {
+        name: formData.name,
+        gehuchten: formData.gehuchten.filter((g) => g.trim() !== ""),
+        distance: Number.parseFloat(formData.distance),
+        muddy: formData.muddy,
+        description: formData.description,
+        difficulty: formData.difficulty,
+        duration: formData.duration,
+        highlights: formData.highlights.filter((h) => h.trim() !== ""),
+        coordinates: [
+          [50.9167, 4.0333],
+          [50.92, 4.04],
+        ] as [number, number][], // Default coordinates for Nieuwerkerken
+      }
+
+      const result = await addRoute(route)
+      
+      if (result) {
+        router.push("/")
+      } else {
+        alert("Er is een fout opgetreden bij het opslaan van de route.")
+      }
+    } catch (error) {
+      console.error('Error creating route:', error)
+      alert("Er is een fout opgetreden bij het opslaan van de route.")
+    } finally {
+      setLoading(false)
     }
-
-    addRoute(route)
-    router.push("/")
   }
 
   const addGehucht = () => {
@@ -288,15 +301,20 @@ export default function CreateRoutePage() {
               </div>
 
               <div className="flex gap-4 pt-4">
-                <Button type="submit" className="flex-1 bg-sage-light hover:bg-sage-lighter text-white title-font">
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-sage-light hover:bg-sage-lighter text-white title-font"
+                  disabled={loading}
+                >
                   <Save className="w-4 h-4 mr-2" />
-                  Route Opslaan
+                  {loading ? "Bezig met opslaan..." : "Route Opslaan"}
                 </Button>
                 <Link href="/" className="flex-1">
                   <Button
                     type="button"
                     variant="outline"
                     className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 bg-transparent"
+                    disabled={loading}
                   >
                     Annuleren
                   </Button>
