@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
-import { Save, Undo, Redo, MapPin, Trash2 } from 'lucide-react'
+import { Save, Undo, Trash2, MapPin, ArrowLeft } from 'lucide-react'
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getRouteById, updateRoute } from "@/lib/auth"
@@ -67,57 +68,33 @@ export default function RouteEditorPage() {
   useEffect(() => {
     if (!mapRef.current) return
 
-    // Clear any existing content
-    mapRef.current.innerHTML = ""
-
-    // Create a loading message first
-    const loadingDiv = document.createElement("div")
-    loadingDiv.className = "flex items-center justify-center h-full text-sage-dark"
-    loadingDiv.innerHTML = "<p>Kaart wordt geladen...</p>"
-    mapRef.current.appendChild(loadingDiv)
-
-    // Create iframe with OpenStreetMap for route editing
+    // Create iframe with OpenStreetMap
     const iframe = document.createElement("iframe")
     iframe.style.width = "100%"
     iframe.style.height = "600px"
     iframe.style.border = "none"
     iframe.style.borderRadius = "8px"
-    iframe.style.backgroundColor = "#f0f0f0"
 
-    // Center on Nieuwerkerken with a larger bounding box
+    // Center on Nieuwerkerken
     const centerLat = 50.9167
     const centerLng = 4.0333
     
-    // Use OpenStreetMap embed with a more reliable URL
+    // Create a focused view on Nieuwerkerken area
     const bbox = `${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}`
     iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
 
-    // Handle iframe loading
-    iframe.onload = () => {
-      console.log("Map loaded successfully")
-      if (isDrawing) {
-        iframe.style.cursor = 'crosshair'
-      } else {
-        iframe.style.cursor = 'default'
-      }
-    }
+    // Clear container and add iframe
+    mapRef.current.innerHTML = ""
+    mapRef.current.appendChild(iframe)
 
-    iframe.onerror = () => {
-      console.error("Failed to load map")
-      mapRef.current!.innerHTML = `
-        <div class="flex items-center justify-center h-full bg-red-50 text-red-600 rounded-lg">
-          <p>Kaart kon niet worden geladen. Probeer de pagina te verversen.</p>
-        </div>
-      `
+    // Add click simulation for drawing mode
+    if (isDrawing) {
+      iframe.style.cursor = 'crosshair'
+      iframe.style.border = '2px solid #82AB7D'
+    } else {
+      iframe.style.cursor = 'default'
+      iframe.style.border = 'none'
     }
-
-    // Replace loading message with iframe after a short delay
-    setTimeout(() => {
-      if (mapRef.current) {
-        mapRef.current.innerHTML = ""
-        mapRef.current.appendChild(iframe)
-      }
-    }, 500)
 
   }, [isDrawing])
 
@@ -146,6 +123,18 @@ export default function RouteEditorPage() {
     }
   }
 
+  // Simulate adding a point when in drawing mode
+  const addRandomPoint = () => {
+    if (!isDrawing) return
+    
+    const baseLatitude = 50.9167
+    const baseLongitude = 4.0333
+    const randomLat = baseLatitude + (Math.random() - 0.5) * 0.01
+    const randomLng = baseLongitude + (Math.random() - 0.5) * 0.01
+    
+    setCoordinates(prev => [...prev, [randomLat, randomLng]])
+  }
+
   if (!route) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
@@ -157,6 +146,19 @@ export default function RouteEditorPage() {
   return (
     <div className="min-h-screen bg-cream">
       <div className="container mx-auto px-4 py-6">
+        {/* Back button */}
+        <div className="mb-6">
+          <Link href={`/route/${route.id}`}>
+            <Button
+              variant="outline"
+              className="border-sage-light text-sage-dark hover:bg-sage-lightest bg-transparent"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Terug naar route
+            </Button>
+          </Link>
+        </div>
+
         <Card className="border-beige bg-white mb-6">
           <CardHeader>
             <CardTitle className="text-2xl text-sage-dark flex items-center gap-2 title-font">
@@ -173,6 +175,14 @@ export default function RouteEditorPage() {
                 >
                   {isDrawing ? 'Stop Tekenen' : 'Start Tekenen'}
                 </Button>
+                {isDrawing && (
+                  <Button
+                    onClick={addRandomPoint}
+                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Punt Toevoegen (Demo)
+                  </Button>
+                )}
                 <Button
                   onClick={undoLastPoint}
                   variant="outline"
@@ -201,7 +211,6 @@ export default function RouteEditorPage() {
                 <Button
                   onClick={saveRoute}
                   className="bg-sage-light hover:bg-sage-lighter text-white"
-                  disabled={coordinates.length === 0}
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Opslaan
@@ -209,11 +218,11 @@ export default function RouteEditorPage() {
               </div>
             </div>
             
-            <div className="bg-sage-lightest rounded-lg p-4 text-sm text-sage">
+            <div className="bg-sage-lightest rounded-lg p-4 text-sm text-sage mb-4">
               <p className="mb-2"><strong>Instructies:</strong></p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Klik op "Start Tekenen" om te beginnen</li>
-                <li>Klik op de kaart hieronder om punten toe te voegen</li>
+                <li>Gebruik "Punt Toevoegen (Demo)" om punten toe te voegen</li>
                 <li>De route wordt automatisch verbonden tussen de punten</li>
                 <li>Gebruik "Ongedaan maken" om het laatste punt te verwijderen</li>
                 <li>Klik "Opslaan" om de route definitief op te slaan</li>
@@ -229,41 +238,31 @@ export default function RouteEditorPage() {
               {/* Map Container */}
               <div 
                 ref={mapRef}
-                className="h-[600px] bg-gray-100 rounded-lg relative border border-sage-light overflow-hidden"
-                style={{ minHeight: '600px' }}
-              >
-                {/* Fallback content */}
-                <div className="flex items-center justify-center h-full text-sage-dark">
-                  <div className="text-center">
-                    <p className="text-lg mb-2">Kaart wordt voorbereid...</p>
-                    <p className="text-sm text-sage">Even geduld alstublieft</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Instructions when no map is loaded */}
-              {coordinates.length === 0 && (
-                <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
-                  <p className="text-sage-dark text-lg mb-4">
-                    {isDrawing ? 'Klik op de kaart hierboven om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
-                  </p>
-                  <p className="text-sage text-sm">
-                    De kaart wordt geladen... Als je geen kaart ziet, probeer de pagina te verversen.
-                  </p>
-                </div>
-              )}
+                className="h-[600px] bg-sage-lightest rounded-lg relative border border-sage-light overflow-hidden"
+              />
               
               {/* Route visualization overlay */}
               {coordinates.length > 0 && (
                 <div className="bg-white rounded-lg p-4 border border-sage-light">
-                  <h4 className="font-semibold text-sage-dark mb-2">Route Punten:</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <h4 className="font-semibold text-sage-dark mb-2">Route Punten ({coordinates.length}):</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm max-h-40 overflow-y-auto">
                     {coordinates.map((coord, index) => (
                       <div key={index} className="text-sage">
                         Punt {index + 1}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {coordinates.length === 0 && (
+                <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
+                  <p className="text-sage-dark text-lg mb-4">
+                    {isDrawing ? 'Gebruik "Punt Toevoegen (Demo)" om punten toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+                  </p>
+                  <p className="text-sage text-sm">
+                    De kaart toont het gebied rond Nieuwerkerken waar je routes kunt tekenen.
+                  </p>
                 </div>
               )}
             </div>

@@ -20,7 +20,7 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || coordinates.length === 0) return
+    if (!mapRef.current) return
 
     // Create iframe with OpenStreetMap
     const iframe = document.createElement("iframe")
@@ -29,33 +29,52 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
     iframe.style.border = "none"
     iframe.style.borderRadius = "8px"
 
-    // Use OpenStreetMap with markers for start and end points
-    const startLat = coordinates[0][0]
-    const startLng = coordinates[0][1]
-    const endLat = coordinates[coordinates.length - 1][0]
-    const endLng = coordinates[coordinates.length - 1][1]
+    let mapUrl: string
 
-    // Center the map between start and end points
-    const centerLat = (startLat + endLat) / 2
-    const centerLng = (startLng + endLng) / 2
+    if (coordinates.length > 0) {
+      // Use actual coordinates from the route
+      const startLat = coordinates[0][0]
+      const startLng = coordinates[0][1]
+      const endLat = coordinates[coordinates.length - 1][0]
+      const endLng = coordinates[coordinates.length - 1][1]
 
-    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}&layer=mapnik&marker=${centerLat},${centerLng}`
+      // Center the map between start and end points
+      const centerLat = (startLat + endLat) / 2
+      const centerLng = (startLng + endLng) / 2
+
+      // Create bounding box around the route
+      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
+      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
+    } else {
+      // Default to Nieuwerkerken center
+      const centerLat = 50.9167
+      const centerLng = 4.0333
+      const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
+      mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
+    }
+
+    iframe.src = mapUrl
 
     mapRef.current.innerHTML = ""
     mapRef.current.appendChild(iframe)
   }, [coordinates])
 
   const openFullscreenMap = () => {
-    if (coordinates.length === 0) return
+    let mapUrl: string
 
-    const startLat = coordinates[0][0]
-    const startLng = coordinates[0][1]
-    const endLat = coordinates[coordinates.length - 1][0]
-    const endLng = coordinates[coordinates.length - 1][1]
-    const centerLat = (startLat + endLat) / 2
-    const centerLng = (startLng + endLng) / 2
+    if (coordinates.length > 0) {
+      const startLat = coordinates[0][0]
+      const startLng = coordinates[0][1]
+      const endLat = coordinates[coordinates.length - 1][0]
+      const endLng = coordinates[coordinates.length - 1][1]
+      const centerLat = (startLat + endLat) / 2
+      const centerLng = (startLng + endLng) / 2
+      mapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLng}&zoom=15#map=15/${centerLat}/${centerLng}`
+    } else {
+      // Default to Nieuwerkerken
+      mapUrl = `https://www.openstreetmap.org/?mlat=50.9167&mlon=4.0333&zoom=15#map=15/50.9167/4.0333`
+    }
 
-    const mapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLng}&zoom=15#map=15/${centerLat}/${centerLng}`
     window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
   }
 
@@ -65,27 +84,6 @@ export default function RouteMap({ coordinates, routeName, routeId }: RouteMapPr
     // Open route editor in new window
     const editorUrl = `/route-editor/${routeId}`
     window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
-  }
-
-  if (coordinates.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="h-96 bg-sage-lightest rounded-lg flex items-center justify-center">
-          <p className="text-sage">Geen kaartgegevens beschikbaar</p>
-        </div>
-        {isLoggedIn && routeId && (
-          <div className="flex justify-center">
-            <Button
-              onClick={openRouteEditor}
-              className="bg-sage-light hover:bg-sage-lighter text-white"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Route Tekenen
-            </Button>
-          </div>
-        )}
-      </div>
-    )
   }
 
   return (
