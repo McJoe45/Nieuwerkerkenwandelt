@@ -15,42 +15,36 @@ export interface Route {
   coordinates: [number, number][]
   difficulty: string
   duration: string
-  highlights?: string[]
+  highlights: string[]
   created_at?: string
   created_by?: string
 }
 
 // Authentication functions
+export function isAuthenticated(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem('isLoggedIn') === 'true'
+}
+
 export function login(username: string, password: string): boolean {
-  if (username === 'admin' && password === 'wandelen123') {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('isLoggedIn', 'true')
-      localStorage.setItem('currentUser', username)
-    }
+  if (username === 'admin' && password === 'wandelen2024') {
+    localStorage.setItem('isLoggedIn', 'true')
     return true
   }
   return false
 }
 
 export function logout(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('isLoggedIn')
-    localStorage.removeItem('currentUser')
-  }
+  localStorage.removeItem('isLoggedIn')
 }
 
-export function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem('isLoggedIn') === 'true'
+export function getCurrentUser(): string | null {
+  if (typeof window === 'undefined') return null
+  return isAuthenticated() ? 'admin' : null
 }
 
-export function getCurrentUser(): string {
-  if (typeof window === 'undefined') return ''
-  return localStorage.getItem('currentUser') || ''
-}
-
-// Supabase route functions
-export async function getRoutes(): Promise<Route[]> {
+// Route functions
+export async function getAllRoutes(): Promise<Route[]> {
   try {
     const { data, error } = await supabase
       .from('routes')
@@ -89,45 +83,35 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function addRoute(route: Omit<Route, 'id' | 'created_at'>): Promise<Route | null> {
+export async function createRoute(route: Omit<Route, 'id' | 'created_at' | 'created_by'>): Promise<Route | null> {
   try {
     const { data, error } = await supabase
       .from('routes')
       .insert([{
         ...route,
-        created_by: getCurrentUser()
+        created_by: getCurrentUser() || 'admin'
       }])
       .select()
       .single()
 
     if (error) {
-      console.error('Error saving route:', error)
+      console.error('Error creating route:', error)
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Error saving route:', error)
+    console.error('Error creating route:', error)
     return null
   }
 }
 
-export async function updateRoute(updatedRoute: Route): Promise<Route | null> {
+export async function updateRoute(id: string, route: Partial<Route>): Promise<Route | null> {
   try {
     const { data, error } = await supabase
       .from('routes')
-      .update({
-        name: updatedRoute.name,
-        gehuchten: updatedRoute.gehuchten,
-        distance: updatedRoute.distance,
-        muddy: updatedRoute.muddy,
-        description: updatedRoute.description,
-        coordinates: updatedRoute.coordinates,
-        difficulty: updatedRoute.difficulty,
-        duration: updatedRoute.duration,
-        highlights: updatedRoute.highlights
-      })
-      .eq('id', updatedRoute.id)
+      .update(route)
+      .eq('id', id)
       .select()
       .single()
 

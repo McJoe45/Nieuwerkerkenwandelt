@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Edit, Trash2, Plus, MapPin } from 'lucide-react'
+import Link from "next/link"
+import { Plus, Edit, Trash2, MapPin, Clock } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Header from "@/components/header"
-import { getRoutes, deleteRoute, isAuthenticated, type Route } from "@/lib/auth"
+import { getAllRoutes, deleteRoute, isAuthenticated, type Route } from "@/lib/auth"
 
 export default function AdminPage() {
   const router = useRouter()
@@ -19,33 +20,29 @@ export default function AdminPage() {
       router.push('/login')
       return
     }
+
+    const loadRoutes = async () => {
+      try {
+        const routesData = await getAllRoutes()
+        setRoutes(routesData)
+      } catch (error) {
+        console.error('Error loading routes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     loadRoutes()
   }, [router])
 
-  const loadRoutes = async () => {
-    try {
-      const routesData = await getRoutes()
-      setRoutes(routesData)
-    } catch (error) {
-      console.error('Error loading routes:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Weet je zeker dat je de route "${name}" wilt verwijderen?`)) return
-
-    try {
-      const success = await deleteRoute(id)
+  const handleDelete = async (route: Route) => {
+    if (confirm(`Weet je zeker dat je de route "${route.name}" wilt verwijderen?`)) {
+      const success = await deleteRoute(route.id)
       if (success) {
-        await loadRoutes() // Reload routes after deletion
+        setRoutes(routes.filter(r => r.id !== route.id))
       } else {
-        alert('Er is een fout opgetreden bij het verwijderen van de route.')
+        alert("Er is een fout opgetreden bij het verwijderen van de route.")
       }
-    } catch (error) {
-      console.error('Error deleting route:', error)
-      alert('Er is een fout opgetreden bij het verwijderen van de route.')
     }
   }
 
@@ -77,99 +74,89 @@ export default function AdminPage() {
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-sage-dark title-font mb-2">
-              Route Beheer
-            </h1>
-            <p className="text-sage">
-              Beheer alle wandelroutes in het systeem
-            </p>
-          </div>
-          
-          <Button 
-            onClick={() => router.push('/create-route')}
-            className="bg-sage hover:bg-sage-light text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Nieuwe Route
-          </Button>
+          <h1 className="text-3xl font-bold text-sage-dark title-font">Route Beheer</h1>
+          <Link href="/create-route">
+            <Button className="bg-sage-light hover:bg-sage text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Nieuwe Route
+            </Button>
+          </Link>
         </div>
 
-        {routes.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-20 h-20 bg-sage-light/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <MapPin className="w-10 h-10 text-sage" />
-            </div>
-            <h2 className="text-xl font-semibold text-sage-dark mb-4">Geen routes gevonden</h2>
-            <p className="text-sage mb-6">Er zijn nog geen wandelroutes toegevoegd.</p>
-            <Button 
-              onClick={() => router.push('/create-route')}
-              className="bg-sage hover:bg-sage-light text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Eerste Route Toevoegen
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {routes.map((route) => (
-              <Card key={route.id} className="bg-white border-sage-light hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-sage-dark flex items-center gap-2 title-font">
-                    <MapPin className="w-5 h-5" />
-                    {route.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-1">
-                    {route.gehuchten && route.gehuchten.map((gehucht) => (
-                      <Badge key={gehucht} variant="secondary" className="bg-sage-lightest text-sage-dark text-xs">
-                        {gehucht}
-                      </Badge>
-                    ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {routes.map((route) => (
+            <Card key={route.id} className="bg-white border-sage-light">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-sage-light rounded-lg flex items-center justify-center">
+                      <MapPin className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg text-sage-dark title-font">{route.name}</CardTitle>
+                      <p className="text-sage text-sm">
+                        {route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten.join(' • ') : ''}
+                      </p>
+                    </div>
                   </div>
-
-                  <p className="text-sage text-sm line-clamp-3">{route.description}</p>
-
-                  <div className="flex items-center justify-between text-sm text-sage">
-                    <span>{route.distance} km</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 text-sm text-sage-dark">
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    <span className="font-medium">{route.distance} km</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
                     <span>{route.duration}</span>
                   </div>
+                </div>
 
-                  <div className="flex items-center justify-between">
-                    <Badge className={getDifficultyColor(route.difficulty)}>
-                      {route.difficulty}
+                <div className="flex items-center gap-2">
+                  <Badge className={getDifficultyColor(route.difficulty)}>
+                    {route.difficulty}
+                  </Badge>
+                  {route.muddy && (
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                      Modderpad
                     </Badge>
-                    {route.muddy && (
-                      <Badge className="bg-amber-100 text-amber-800">
-                        Modder
-                      </Badge>
-                    )}
-                  </div>
+                  )}
+                </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/edit-route/${route.id}`)}
-                      className="flex-1 border-sage text-sage hover:bg-sage hover:text-white"
-                    >
-                      <Edit className="w-4 h-4 mr-1" />
+                <p className="text-sage text-sm leading-relaxed line-clamp-2">
+                  {route.description}
+                </p>
+
+                <div className="flex gap-2 pt-2">
+                  <Link href={`/edit-route/${route.id}`} className="flex-1">
+                    <Button variant="outline" className="w-full border-sage-light text-sage hover:bg-sage hover:text-white">
+                      <Edit className="w-4 h-4 mr-2" />
                       Bewerken
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(route.id, route.name)}
-                      className="flex-1 border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Verwijderen
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </Link>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDelete(route)}
+                    className="border-red-300 text-red-700 hover:bg-red-500 hover:text-white"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {routes.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-sage-dark text-lg mb-4">Nog geen routes aangemaakt</p>
+            <Link href="/create-route">
+              <Button className="bg-sage-light hover:bg-sage text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                Eerste Route Toevoegen
+              </Button>
+            </Link>
           </div>
         )}
       </main>
