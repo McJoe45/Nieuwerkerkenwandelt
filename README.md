@@ -1,1 +1,1 @@
-routeplanner
+routeplanner wandelen
