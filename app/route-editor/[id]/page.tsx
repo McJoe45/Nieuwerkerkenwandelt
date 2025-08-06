@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
-import { Save, Trash2, MapPin, CheckCircle } from 'lucide-react'
+import { Save, Trash2, MapPin, Play, Square } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getRouteById, updateRoute } from "@/lib/auth"
@@ -29,8 +29,8 @@ declare global {
 export default function RouteEditorPage() {
   const params = useParams()
   const [route, setRoute] = useState<Route | null>(null)
-  const [waypoints, setWaypoints] = useState<[number, number][]>([]) // User clicked waypoints
-  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([]) // Detailed route from routing engine
+  const [waypoints, setWaypoints] = useState<[number, number][]>([])
+  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([])
   const [isDrawing, setIsDrawing] = useState(false)
   const [totalDistance, setTotalDistance] = useState(0)
   const mapRef = useRef<HTMLDivElement>(null)
@@ -42,16 +42,15 @@ export default function RouteEditorPage() {
     const routeData = getRouteById(params.id as string)
     if (routeData) {
       setRoute(routeData)
-      // Only set waypoints if there are existing coordinates, but keep them simple
+      // Load existing route if available
       if (routeData.coordinates && routeData.coordinates.length > 0) {
-        // For existing routes, just use start and end points as waypoints
+        setRouteCoordinates(routeData.coordinates)
+        // Extract waypoints from existing route (start, middle points, end)
         const coords = routeData.coordinates
         if (coords.length >= 2) {
+          // For simplicity, just use start and end as waypoints
           setWaypoints([coords[0], coords[coords.length - 1]])
-        } else {
-          setWaypoints(coords)
         }
-        setRouteCoordinates(routeData.coordinates)
       }
     }
   }, [params.id])
@@ -60,23 +59,19 @@ export default function RouteEditorPage() {
   useEffect(() => {
     const loadScripts = async () => {
       if (typeof window !== 'undefined' && !window.L) {
-        // Load Leaflet CSS
         const leafletCSS = document.createElement('link')
         leafletCSS.rel = 'stylesheet'
         leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
         document.head.appendChild(leafletCSS)
 
-        // Load Leaflet JS
         const leafletJS = document.createElement('script')
         leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
         leafletJS.onload = () => {
-          // Load Routing Machine CSS
           const routingCSS = document.createElement('link')
           routingCSS.rel = 'stylesheet'
           routingCSS.href = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css'
           document.head.appendChild(routingCSS)
 
-          // Load Routing Machine JS
           const routingJS = document.createElement('script')
           routingJS.src = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js'
           routingJS.onload = () => {
@@ -98,23 +93,87 @@ export default function RouteEditorPage() {
     if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
 
     const L = window.L
-
-    // Initialize map centered on Nieuwerkerken
     const map = L.map(mapRef.current).setView([50.9167, 4.0333], 15)
 
-    // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map)
 
     mapInstanceRef.current = map
 
-    // Add existing route if available
-    if (waypoints.length > 0) {
+    // Load existing route if available
+    if (routeCoordinates.length > 0) {
+      displayExistingRoute(routeCoordinates)
+    } else if (waypoints.length > 0) {
       updateRouteOnMap(waypoints)
     }
 
-  }, [scriptsLoaded])
+  }, [scriptsLoaded, routeCoordinates])
+
+  const displayExistingRoute = (coords: [number, number][]) => {
+    if (!mapInstanceRef.current || !window.L || coords.length === 0) return
+
+    const L = window.L
+
+    // Clear existing layers
+    mapInstanceRef.current.eachLayer((layer: any) => {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        mapInstanceRef.current.removeLayer(layer)
+      }
+    })
+
+    // Draw the existing route as a red polyline
+    const polyline = L.polyline(coords, {
+      color: 'red',
+      weight: 4,
+      opacity: 0.8
+    }).addTo(mapInstanceRef.current)
+
+    // Add start and end markers
+    if (coords.length >= 2) {
+      // Start marker
+      L.marker([coords[0][0], coords[0][1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapInstanceRef.current)
+
+      // End marker
+      L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
+        icon: L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background-color: red; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">EINDE</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapInstanceRef.current)
+
+      // Fit map to route bounds
+      mapInstanceRef.current.fitBounds(polyline.getBounds(), { padding: [20, 20] })
+    }
+
+    // Calculate distance
+    let distance = 0
+    for (let i = 1; i < coords.length; i++) {
+      const lat1 = coords[i - 1][0]
+      const lon1 = coords[i - 1][1]
+      const lat2 = coords[i][0]
+      const lon2 = coords[i][1]
+      
+      const R = 6371 // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180
+      const dLon = (lon2 - lon1) * Math.PI / 180
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+      distance += R * c
+    }
+    setTotalDistance(Math.round(distance * 10) / 10)
+  }
 
   const updateRouteOnMap = (waypointList: [number, number][]) => {
     if (!mapInstanceRef.current || !window.L) return
@@ -126,7 +185,7 @@ export default function RouteEditorPage() {
       mapInstanceRef.current.removeControl(routingControlRef.current)
     }
 
-    // Clear all existing markers and routes
+    // Clear existing layers
     mapInstanceRef.current.eachLayer((layer: any) => {
       if (layer instanceof L.Marker || layer instanceof L.Polyline) {
         mapInstanceRef.current.removeLayer(layer)
@@ -134,7 +193,6 @@ export default function RouteEditorPage() {
     })
 
     if (waypointList.length >= 2) {
-      // Create routing control with waypoints
       const routingControl = L.Routing.control({
         waypoints: waypointList.map(coord => L.latLng(coord[0], coord[1])),
         routeWhileDragging: false,
@@ -144,7 +202,8 @@ export default function RouteEditorPage() {
           profile: 'foot',
           polylinePrecision: 5,
           useHints: false,
-          suppressDemoServerWarning: true
+          suppressDemoServerWarning: true,
+          timeout: 30 * 1000
         }),
         createMarker: function(i: number, waypoint: any, n: number) {
           const isStart = i === 0
@@ -183,7 +242,6 @@ export default function RouteEditorPage() {
         const distanceKm = Math.round(summary.totalDistance / 100) / 10
         setTotalDistance(distanceKm)
         
-        // Extract the detailed route coordinates
         const detailedCoords = routes[0].coordinates.map((coord: any) => [coord.lat, coord.lng])
         setRouteCoordinates(detailedCoords)
         
@@ -192,15 +250,17 @@ export default function RouteEditorPage() {
           detailedCoords: detailedCoords.length,
           distance: distanceKm
         })
+      }).on('routingerror', function(e: any) {
+        console.error('Routing error:', e)
+        alert('Kon geen route vinden tussen deze punten. Probeer punten dichter bij wegen te plaatsen.')
       }).addTo(mapInstanceRef.current)
 
       routingControlRef.current = routingControl
     } else if (waypointList.length === 1) {
-      // Single point - just show start marker
       L.marker([waypointList[0][0], waypointList[0][1]], {
         icon: L.divIcon({
           className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
+          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
           iconSize: [30, 30],
           iconAnchor: [15, 15]
         })
@@ -230,7 +290,6 @@ export default function RouteEditorPage() {
 
   const startDrawing = () => {
     setIsDrawing(true)
-    // Clear existing route when starting fresh
     setWaypoints([])
     setRouteCoordinates([])
     setTotalDistance(0)
@@ -249,7 +308,7 @@ export default function RouteEditorPage() {
     }
   }
 
-  const finishRoute = () => {
+  const stopDrawing = () => {
     setIsDrawing(false)
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getContainer().style.cursor = ''
@@ -273,7 +332,6 @@ export default function RouteEditorPage() {
         mapInstanceRef.current.removeControl(routingControlRef.current)
         routingControlRef.current = null
       }
-      // Clear all markers and routes
       if (mapInstanceRef.current) {
         mapInstanceRef.current.eachLayer((layer: any) => {
           if (layer instanceof window.L.Marker || layer instanceof window.L.Polyline) {
@@ -284,7 +342,7 @@ export default function RouteEditorPage() {
     }
   }
 
-  const saveRoute = () => {
+  const saveAndClose = () => {
     if (!route || routeCoordinates.length === 0) {
       alert('Er is geen route om op te slaan!')
       return
@@ -292,7 +350,7 @@ export default function RouteEditorPage() {
     
     const updatedRoute = {
       ...route,
-      coordinates: routeCoordinates, // Use the detailed coordinates from routing engine
+      coordinates: routeCoordinates,
       distance: totalDistance
     }
     
@@ -304,7 +362,7 @@ export default function RouteEditorPage() {
     
     updateRoute(updatedRoute)
     
-    // Notify parent window if opened from route detail page
+    // Notify parent window
     if (window.opener) {
       window.opener.postMessage({
         type: 'ROUTE_UPDATED',
@@ -314,7 +372,8 @@ export default function RouteEditorPage() {
       }, '*')
     }
     
-    alert('Route opgeslagen! Je kunt dit venster nu sluiten.')
+    alert('Route opgeslagen!')
+    window.close()
   }
 
   if (!route) {
@@ -343,15 +402,16 @@ export default function RouteEditorPage() {
                     onClick={startDrawing}
                     className="bg-sage-light hover:bg-sage-lighter text-white"
                   >
-                    Start Tekenen
+                    <Play className="w-4 h-4 mr-2" />
+                    Nieuwe Route Tekenen
                   </Button>
                 ) : (
                   <Button
-                    onClick={finishRoute}
-                    className="bg-green-500 hover:bg-green-600 text-white"
+                    onClick={stopDrawing}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Route Klaar
+                    <Square className="w-4 h-4 mr-2" />
+                    Stop Tekenen
                   </Button>
                 )}
                 
@@ -368,7 +428,7 @@ export default function RouteEditorPage() {
                   onClick={clearRoute}
                   variant="outline"
                   className="border-red-300 text-red-700 hover:bg-red-50"
-                  disabled={waypoints.length === 0}
+                  disabled={waypoints.length === 0 && routeCoordinates.length === 0}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Alles Wissen
@@ -381,12 +441,12 @@ export default function RouteEditorPage() {
                   <span className="ml-4">Punten: {waypoints.length}</span>
                 </div>
                 <Button
-                  onClick={saveRoute}
-                  className="bg-sage-light hover:bg-sage-lighter text-white"
+                  onClick={saveAndClose}
+                  className="bg-green-600 hover:bg-green-700 text-white"
                   disabled={routeCoordinates.length === 0}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  Route Bewaren
+                  Opslaan & Sluiten
                 </Button>
               </div>
             </div>
@@ -395,7 +455,7 @@ export default function RouteEditorPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
                 <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
                 <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen. De kortste wandelroute wordt automatisch berekend.</p>
-                <p>Klik "Route Klaar" wanneer je klaar bent met tekenen.</p>
+                <p>Klik "Stop Tekenen" om te stoppen, dan "Opslaan & Sluiten" om de route op te slaan.</p>
               </div>
             )}
 
@@ -407,18 +467,15 @@ export default function RouteEditorPage() {
           </CardContent>
         </Card>
 
-        {/* Interactive Map Area */}
         <Card className="border-beige bg-white">
           <CardContent className="p-4">
             <div className="space-y-4">
-              {/* Map Container */}
               <div 
                 ref={mapRef}
                 className="h-[600px] bg-sage-lightest rounded-lg border border-sage-light"
                 style={{ minHeight: '600px' }}
               />
               
-              {/* Route info */}
               {waypoints.length > 0 && (
                 <div className="bg-white rounded-lg p-4 border border-sage-light">
                   <h4 className="font-semibold text-sage-dark mb-2">Waypoints ({waypoints.length}):</h4>
@@ -435,10 +492,18 @@ export default function RouteEditorPage() {
                 </div>
               )}
 
-              {waypoints.length === 0 && (
+              {routeCoordinates.length > 0 && waypoints.length === 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+                  <p className="font-medium mb-2">✅ Bestaande Route Geladen</p>
+                  <p>Route bevat {routeCoordinates.length} punten over {totalDistance} km</p>
+                  <p>Klik "Nieuwe Route Tekenen" om een nieuwe route te maken.</p>
+                </div>
+              )}
+
+              {waypoints.length === 0 && routeCoordinates.length === 0 && (
                 <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
                   <p className="text-sage-dark text-lg mb-4">
-                    {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Start Tekenen" om te beginnen'}
+                    {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Nieuwe Route Tekenen" om te beginnen'}
                   </p>
                   <p className="text-sage text-sm">
                     De kortste wandelroute wordt automatisch berekend tussen je punten.

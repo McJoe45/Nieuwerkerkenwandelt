@@ -15,6 +15,7 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
   const mapRef = useRef<HTMLDivElement>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [coordinates, setCoordinates] = useState(initialCoordinates)
+  const [lastUpdate, setLastUpdate] = useState(Date.now())
 
   useEffect(() => {
     setIsLoggedIn(isAuthenticated())
@@ -24,22 +25,9 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
-        console.log('Received route update:', event.data)
+        console.log('RouteMap received update:', event.data)
         setCoordinates(event.data.coordinates)
-        // Force refresh of the map
-        setTimeout(() => {
-          if (mapRef.current) {
-            const iframe = mapRef.current.querySelector('iframe')
-            if (iframe) {
-              iframe.style.opacity = '0.5'
-              setTimeout(() => {
-                iframe.style.opacity = '1'
-                // Reload the iframe with new coordinates
-                loadMap(event.data.coordinates)
-              }, 100)
-            }
-          }
-        }, 100)
+        setLastUpdate(Date.now())
       }
     }
 
@@ -47,20 +35,27 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
     return () => window.removeEventListener('message', handleMessage)
   }, [routeId])
 
-  // Also check for route updates when component mounts or routeId changes
+  // Check for route updates when component becomes visible again
   useEffect(() => {
-    if (routeId) {
-      const route = getRouteById(routeId)
-      if (route && route.coordinates) {
-        setCoordinates(route.coordinates)
+    const handleVisibilityChange = () => {
+      if (!document.hidden && routeId) {
+        // Page became visible, check for route updates
+        const route = getRouteById(routeId)
+        if (route && route.coordinates && route.coordinates.length > 0) {
+          console.log('Visibility change - updating route:', route.coordinates.length)
+          setCoordinates(route.coordinates)
+          setLastUpdate(Date.now())
+        }
       }
     }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [routeId])
 
   const loadMap = (coords: [number, number][]) => {
     if (!mapRef.current) return
 
-    // Create iframe with OpenStreetMap
     const iframe = document.createElement("iframe")
     iframe.style.width = "100%"
     iframe.style.height = "400px"
@@ -70,7 +65,6 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
     let mapUrl: string
 
     if (coords.length > 0) {
-      // Calculate bounds for all coordinates
       const lats = coords.map(coord => coord[0])
       const lngs = coords.map(coord => coord[1])
       const minLat = Math.min(...lats)
@@ -78,17 +72,13 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       const minLng = Math.min(...lngs)
       const maxLng = Math.max(...lngs)
       
-      // Add some padding to the bounds
       const padding = 0.005
       const bbox = `${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}`
-      
-      // Center the map
       const centerLat = (minLat + maxLat) / 2
       const centerLng = (minLng + maxLng) / 2
       
       mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat},${centerLng}`
     } else {
-      // Default to Nieuwerkerken center
       const centerLat = 50.9167
       const centerLng = 4.0333
       const bbox = `${centerLng - 0.01},${centerLat - 0.01},${centerLng + 0.01},${centerLat + 0.01}`
@@ -96,14 +86,13 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
     }
 
     iframe.src = mapUrl
-
     mapRef.current.innerHTML = ""
     mapRef.current.appendChild(iframe)
   }
 
   useEffect(() => {
     loadMap(coordinates)
-  }, [coordinates])
+  }, [coordinates, lastUpdate])
 
   const openFullscreenMap = () => {
     let mapUrl: string
@@ -117,7 +106,6 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       const centerLng = (startLng + endLng) / 2
       mapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLng}&zoom=15#map=15/${centerLat}/${centerLng}`
     } else {
-      // Default to Nieuwerkerken
       mapUrl = `https://www.openstreetmap.org/?mlat=50.9167&mlon=4.0333&zoom=15#map=15/50.9167/4.0333`
     }
 
@@ -127,7 +115,6 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
   const openRouteEditor = () => {
     if (!routeId) return
     
-    // Open route editor in new window
     const editorUrl = `/route-editor/${routeId}`
     window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
   }
