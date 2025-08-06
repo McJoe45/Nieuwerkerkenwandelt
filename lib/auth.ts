@@ -43,7 +43,7 @@ export function getCurrentUser(): string | null {
   return isAuthenticated() ? 'admin' : null
 }
 
-// Route functions
+// Route CRUD functions
 export async function getAllRoutes(): Promise<Route[]> {
   try {
     const { data, error } = await supabase
@@ -83,47 +83,43 @@ export async function getRouteById(id: string): Promise<Route | null> {
   }
 }
 
-export async function createRoute(route: Omit<Route, 'id' | 'created_at' | 'created_by'>): Promise<Route | null> {
+export async function createRoute(route: Omit<Route, 'id' | 'created_at' | 'created_by'>): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('routes')
       .insert([{
         ...route,
         created_by: getCurrentUser() || 'admin'
       }])
-      .select()
-      .single()
 
     if (error) {
       console.error('Error creating route:', error)
-      return null
+      return false
     }
 
-    return data
+    return true
   } catch (error) {
     console.error('Error creating route:', error)
-    return null
+    return false
   }
 }
 
-export async function updateRoute(id: string, route: Partial<Route>): Promise<Route | null> {
+export async function updateRoute(id: string, route: Partial<Route>): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('routes')
       .update(route)
       .eq('id', id)
-      .select()
-      .single()
 
     if (error) {
       console.error('Error updating route:', error)
-      return null
+      return false
     }
 
-    return data
+    return true
   } catch (error) {
     console.error('Error updating route:', error)
-    return null
+    return false
   }
 }
 

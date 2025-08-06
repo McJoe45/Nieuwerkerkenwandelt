@@ -4,20 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { ArrowLeft, X } from 'lucide-react'
 import { Button } from "@/components/ui/button"
-import { getRouteById } from "@/lib/auth"
-
-interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-  highlights: string[]
-}
+import { getRouteById, type Route } from "@/lib/auth"
 
 declare global {
   interface Window {
@@ -28,13 +15,26 @@ declare global {
 export default function FullscreenMapPage() {
   const params = useParams()
   const [route, setRoute] = useState<Route | null>(null)
+  const [loading, setLoading] = useState(true)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const [scriptsLoaded, setScriptsLoaded] = useState(false)
 
   useEffect(() => {
-    const routeData = getRouteById(params.id as string)
-    setRoute(routeData)
+    const loadRoute = async () => {
+      if (!params.id) return
+      
+      try {
+        const routeData = await getRouteById(params.id as string)
+        setRoute(routeData)
+      } catch (error) {
+        console.error('Error loading route:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRoute()
   }, [params.id])
 
   // Load Leaflet scripts
@@ -72,7 +72,7 @@ export default function FullscreenMapPage() {
     }).addTo(map)
 
     mapInstanceRef.current = map
-    displayRoute(route.coordinates)
+    displayRoute(route.coordinates || [])
   }, [scriptsLoaded, route])
 
   const displayRoute = (coords: [number, number][]) => {
@@ -80,7 +80,7 @@ export default function FullscreenMapPage() {
 
     const L = window.L
 
-    if (coords.length === 0) {
+    if (!coords || coords.length === 0) {
       mapInstanceRef.current.setView([50.9167, 4.0333], 15)
       return
     }
@@ -134,6 +134,14 @@ export default function FullscreenMapPage() {
 
   const closeWindow = () => {
     window.close()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <p className="text-sage-dark text-xl">Route wordt geladen...</p>
+      </div>
+    )
   }
 
   if (!route) {

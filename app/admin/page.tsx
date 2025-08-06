@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Trash2, Edit, Plus, MapPin, Clock } from 'lucide-react'
 import Link from "next/link"
-import { Plus, Edit, Trash2, MapPin, Clock } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -21,27 +21,27 @@ export default function AdminPage() {
       return
     }
 
-    const loadRoutes = async () => {
-      try {
-        const routesData = await getAllRoutes()
-        setRoutes(routesData)
-      } catch (error) {
-        console.error('Error loading routes:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadRoutes()
   }, [router])
 
-  const handleDelete = async (route: Route) => {
-    if (confirm(`Weet je zeker dat je de route "${route.name}" wilt verwijderen?`)) {
-      const success = await deleteRoute(route.id)
+  const loadRoutes = async () => {
+    try {
+      const routesData = await getAllRoutes()
+      setRoutes(routesData)
+    } catch (error) {
+      console.error('Error loading routes:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`Weet je zeker dat je de route "${name}" wilt verwijderen?`)) {
+      const success = await deleteRoute(id)
       if (success) {
-        setRoutes(routes.filter(r => r.id !== route.id))
+        await loadRoutes() // Reload routes after deletion
       } else {
-        alert("Er is een fout opgetreden bij het verwijderen van de route.")
+        alert('Er is een fout opgetreden bij het verwijderen van de route.')
       }
     }
   }
@@ -76,7 +76,7 @@ export default function AdminPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-sage-dark title-font">Route Beheer</h1>
           <Link href="/create-route">
-            <Button className="bg-sage-light hover:bg-sage text-white">
+            <Button className="bg-sage hover:bg-sage-light text-white">
               <Plus className="w-4 h-4 mr-2" />
               Nieuwe Route
             </Button>
@@ -87,27 +87,25 @@ export default function AdminPage() {
           {routes.map((route) => (
             <Card key={route.id} className="bg-white border-sage-light">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-sage-light rounded-lg flex items-center justify-center">
-                      <MapPin className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg text-sage-dark title-font">{route.name}</CardTitle>
-                      <p className="text-sage text-sm">
-                        {route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten.join(' • ') : ''}
-                      </p>
-                    </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 bg-sage-light rounded-xl flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-sage-dark text-lg title-font">{route.name}</CardTitle>
+                    <p className="text-sage text-sm">
+                      {route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten.join(' • ') : ''}
+                    </p>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-4 text-sm text-sage-dark">
-                  <div className="flex items-center gap-1">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2 text-sage-dark">
                     <MapPin className="w-4 h-4" />
-                    <span className="font-medium">{route.distance} km</span>
+                    <span className="font-semibold">{route.distance} km</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2 text-sage-dark">
                     <Clock className="w-4 h-4" />
                     <span>{route.duration}</span>
                   </div>
@@ -129,16 +127,21 @@ export default function AdminPage() {
                 </p>
 
                 <div className="flex gap-2 pt-2">
-                  <Link href={`/edit-route/${route.id}`} className="flex-1">
-                    <Button variant="outline" className="w-full border-sage-light text-sage hover:bg-sage hover:text-white">
-                      <Edit className="w-4 h-4 mr-2" />
-                      Bewerken
+                  <Link href={`/route/${route.id}`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full border-sage-light text-sage hover:bg-sage-lightest">
+                      Bekijken
+                    </Button>
+                  </Link>
+                  <Link href={`/edit-route/${route.id}`}>
+                    <Button variant="outline" size="sm" className="border-sage-light text-sage hover:bg-sage-lightest">
+                      <Edit className="w-4 h-4" />
                     </Button>
                   </Link>
                   <Button
                     variant="outline"
-                    onClick={() => handleDelete(route)}
-                    className="border-red-300 text-red-700 hover:bg-red-500 hover:text-white"
+                    size="sm"
+                    onClick={() => handleDelete(route.id, route.name)}
+                    className="border-red-300 text-red-700 hover:bg-red-100"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -150,9 +153,9 @@ export default function AdminPage() {
 
         {routes.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-sage-dark text-lg mb-4">Nog geen routes aangemaakt</p>
+            <p className="text-sage-dark text-lg mb-4">Geen routes gevonden.</p>
             <Link href="/create-route">
-              <Button className="bg-sage-light hover:bg-sage text-white">
+              <Button className="bg-sage hover:bg-sage-light text-white">
                 <Plus className="w-4 h-4 mr-2" />
                 Eerste Route Toevoegen
               </Button>

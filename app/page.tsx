@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { MapPin, Clock, Plus } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { MapPin, Clock, Users, Plus } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import Header from "@/components/header"
 import { getAllRoutes, isAuthenticated, type Route } from "@/lib/auth"
 
@@ -59,22 +59,22 @@ export default function HomePage() {
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-sage-dark mb-4 title-font leading-tight">
+          <h1 className="text-4xl md:text-5xl font-bold text-sage-dark mb-4 title-font">
             De mooiste wandelingen<br />
             in en om Nieuwerkerken
           </h1>
-          <p className="text-lg text-sage max-w-2xl mx-auto">
+          <p className="text-xl text-sage max-w-2xl mx-auto">
             Ontdek de routes die door echte lokale wandelaars werden samengesteld.
           </p>
         </div>
 
-        {/* Admin Controls */}
+        {/* Admin Actions */}
         {isLoggedIn && (
-          <div className="mb-8 flex justify-end">
+          <div className="mb-8 flex justify-center">
             <Link href="/create-route">
-              <Button className="bg-sage-light hover:bg-sage text-white">
+              <Button className="bg-sage hover:bg-sage-light text-white">
                 <Plus className="w-4 h-4 mr-2" />
-                Nieuwe Route
+                Nieuwe Route Toevoegen
               </Button>
             </Link>
           </div>
@@ -85,33 +85,32 @@ export default function HomePage() {
           {routes.map((route) => (
             <Link key={route.id} href={`/route/${route.id}`}>
               <Card className="bg-white border-sage-light hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3 mb-4">
+                <CardHeader>
+                  <div className="flex items-start gap-3">
                     <div className="w-12 h-12 bg-sage-light rounded-xl flex items-center justify-center flex-shrink-0">
                       <MapPin className="w-6 h-6 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-sage-dark text-lg mb-1 title-font">
-                        {route.name}
-                      </h3>
-                      <p className="text-sage text-sm">
+                      <CardTitle className="text-sage-dark text-lg title-font">{route.name}</CardTitle>
+                      <CardDescription className="text-sage text-sm">
                         {route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten.join(' • ') : ''}
-                      </p>
+                      </CardDescription>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-4 mb-4 text-sm text-sage-dark">
-                    <div className="flex items-center gap-1">
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-2 text-sage-dark">
                       <MapPin className="w-4 h-4" />
-                      <span className="font-medium">{route.distance} km</span>
+                      <span className="font-semibold">{route.distance} km</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 text-sage-dark">
                       <Clock className="w-4 h-4" />
                       <span>{route.duration}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2">
                     <Badge className={getDifficultyColor(route.difficulty)}>
                       {route.difficulty}
                     </Badge>
@@ -133,10 +132,10 @@ export default function HomePage() {
 
         {routes.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-sage-dark text-lg mb-4">Nog geen routes beschikbaar</p>
+            <p className="text-sage-dark text-lg">Geen routes gevonden.</p>
             {isLoggedIn && (
               <Link href="/create-route">
-                <Button className="bg-sage-light hover:bg-sage text-white">
+                <Button className="mt-4 bg-sage hover:bg-sage-light text-white">
                   <Plus className="w-4 h-4 mr-2" />
                   Eerste Route Toevoegen
                 </Button>
