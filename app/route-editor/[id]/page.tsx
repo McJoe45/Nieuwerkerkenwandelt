@@ -8,19 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getRouteById, updateRoute } from "@/lib/supabase"
 import type { Route } from "@/lib/supabase"
 
-interface Route {
-  id: string
-  name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
-  description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
-  highlights: string[]
-}
-
 declare global {
   interface Window {
     L: any;
@@ -395,7 +382,7 @@ export default function RouteEditorPage() {
       distance: totalDistance
     }
     
-    console.log('Saving route:', {
+    console.log('Saving route to Supabase:', {
       id: updatedRoute.id,
       coordinatesCount: updatedRoute.coordinates.length,
       distance: updatedRoute.distance
@@ -412,11 +399,11 @@ export default function RouteEditorPage() {
           routeId: route.id,
           coordinates: routeCoordinates,
           distance: totalDistance,
-          route: updatedRoute
+          route: result // Use the result from Supabase
         }, '*')
       }
       
-      alert('Route opgeslagen!')
+      alert('Route opgeslagen in database!')
       window.close()
     } else {
       alert('Er is een fout opgetreden bij het opslaan van de route.')
