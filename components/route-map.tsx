@@ -72,11 +72,36 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
         console.log('RouteMap received update:', event.data)
         setCoordinates(event.data.coordinates)
+        
+        // Also update the route in localStorage to ensure persistence
+        if (event.data.route) {
+          const routes = JSON.parse(localStorage.getItem('routes') || '[]')
+          const routeIndex = routes.findIndex((r: any) => r.id === routeId)
+          if (routeIndex !== -1) {
+            routes[routeIndex] = event.data.route
+            localStorage.setItem('routes', JSON.stringify(routes))
+          }
+        }
+      }
+    }
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'routes' && routeId) {
+        console.log('Storage changed, reloading route')
+        const route = getRouteById(routeId)
+        if (route && route.coordinates && route.coordinates.length > 0) {
+          setCoordinates(route.coordinates)
+        }
       }
     }
 
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
+    window.addEventListener('storage', handleStorageChange)
+    
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('storage', handleStorageChange)
+    }
   }, [routeId])
 
   // Check for route updates when component becomes visible again
@@ -91,8 +116,24 @@ export default function RouteMap({ coordinates: initialCoordinates, routeName, r
       }
     }
 
+    const handleFocus = () => {
+      if (routeId) {
+        // Reload route data when window gets focus
+        const route = getRouteById(routeId)
+        if (route && route.coordinates && route.coordinates.length > 0) {
+          console.log('Window focus - updating route:', route.coordinates.length)
+          setCoordinates(route.coordinates)
+        }
+      }
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [routeId])
 
   // Update route display when coordinates change
