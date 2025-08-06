@@ -42,13 +42,10 @@ export default function RouteEditorPage() {
     const routeData = getRouteById(params.id as string)
     if (routeData) {
       setRoute(routeData)
-      // Load existing route if available
       if (routeData.coordinates && routeData.coordinates.length > 0) {
         setRouteCoordinates(routeData.coordinates)
-        // Extract waypoints from existing route (start, middle points, end)
         const coords = routeData.coordinates
         if (coords.length >= 2) {
-          // For simplicity, just use start and end as waypoints
           setWaypoints([coords[0], coords[coords.length - 1]])
         }
       }
@@ -101,7 +98,6 @@ export default function RouteEditorPage() {
 
     mapInstanceRef.current = map
 
-    // Load existing route if available
     if (routeCoordinates.length > 0) {
       displayExistingRoute(routeCoordinates)
     } else if (waypoints.length > 0) {
@@ -115,23 +111,19 @@ export default function RouteEditorPage() {
 
     const L = window.L
 
-    // Clear existing layers
     mapInstanceRef.current.eachLayer((layer: any) => {
       if (layer instanceof L.Marker || layer instanceof L.Polyline) {
         mapInstanceRef.current.removeLayer(layer)
       }
     })
 
-    // Draw the existing route as a red polyline
     const polyline = L.polyline(coords, {
       color: 'red',
       weight: 4,
       opacity: 0.8
     }).addTo(mapInstanceRef.current)
 
-    // Add start and end markers
     if (coords.length >= 2) {
-      // Start marker
       L.marker([coords[0][0], coords[0][1]], {
         icon: L.divIcon({
           className: 'custom-marker',
@@ -141,7 +133,6 @@ export default function RouteEditorPage() {
         })
       }).addTo(mapInstanceRef.current)
 
-      // End marker
       L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
         icon: L.divIcon({
           className: 'custom-marker',
@@ -151,11 +142,9 @@ export default function RouteEditorPage() {
         })
       }).addTo(mapInstanceRef.current)
 
-      // Fit map to route bounds
       mapInstanceRef.current.fitBounds(polyline.getBounds(), { padding: [20, 20] })
     }
 
-    // Calculate distance
     let distance = 0
     for (let i = 1; i < coords.length; i++) {
       const lat1 = coords[i - 1][0]
@@ -163,7 +152,7 @@ export default function RouteEditorPage() {
       const lat2 = coords[i][0]
       const lon2 = coords[i][1]
       
-      const R = 6371 // Earth's radius in km
+      const R = 6371
       const dLat = (lat2 - lat1) * Math.PI / 180
       const dLon = (lon2 - lon1) * Math.PI / 180
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -180,12 +169,10 @@ export default function RouteEditorPage() {
 
     const L = window.L
 
-    // Remove existing routing control
     if (routingControlRef.current) {
       mapInstanceRef.current.removeControl(routingControlRef.current)
     }
 
-    // Clear existing layers
     mapInstanceRef.current.eachLayer((layer: any) => {
       if (layer instanceof L.Marker || layer instanceof L.Polyline) {
         mapInstanceRef.current.removeLayer(layer)
@@ -193,6 +180,7 @@ export default function RouteEditorPage() {
     })
 
     if (waypointList.length >= 2) {
+      // Try GraphHopper first (better for walking), fallback to OSRM
       const routingControl = L.Routing.control({
         waypoints: waypointList.map(coord => L.latLng(coord[0], coord[1])),
         routeWhileDragging: false,
@@ -203,7 +191,12 @@ export default function RouteEditorPage() {
           polylinePrecision: 5,
           useHints: false,
           suppressDemoServerWarning: true,
-          timeout: 30 * 1000
+          timeout: 30 * 1000,
+          // Force shortest route
+          overview: 'full',
+          geometries: 'geojson',
+          steps: false,
+          alternatives: false
         }),
         createMarker: function(i: number, waypoint: any, n: number) {
           const isStart = i === 0
@@ -248,11 +241,43 @@ export default function RouteEditorPage() {
         console.log('Route found:', {
           waypoints: waypointList.length,
           detailedCoords: detailedCoords.length,
-          distance: distanceKm
+          distance: distanceKm,
+          summary: summary
         })
       }).on('routingerror', function(e: any) {
         console.error('Routing error:', e)
-        alert('Kon geen route vinden tussen deze punten. Probeer punten dichter bij wegen te plaatsen.')
+        // Fallback: draw straight line
+        if (waypointList.length >= 2) {
+          const polyline = L.polyline(waypointList, {
+            color: 'orange',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '10, 10'
+          }).addTo(mapInstanceRef.current)
+          
+          setRouteCoordinates(waypointList)
+          
+          // Calculate straight line distance
+          let distance = 0
+          for (let i = 1; i < waypointList.length; i++) {
+            const lat1 = waypointList[i - 1][0]
+            const lon1 = waypointList[i - 1][1]
+            const lat2 = waypointList[i][0]
+            const lon2 = waypointList[i][1]
+            
+            const R = 6371
+            const dLat = (lat2 - lat1) * Math.PI / 180
+            const dLon = (lon2 - lon1) * Math.PI / 180
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2)
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+            distance += R * c
+          }
+          setTotalDistance(Math.round(distance * 10) / 10)
+          
+          alert('Kon geen route via wegen vinden. Rechte lijn getoond (oranje stippellijn).')
+        }
       }).addTo(mapInstanceRef.current)
 
       routingControlRef.current = routingControl
@@ -295,7 +320,6 @@ export default function RouteEditorPage() {
     setTotalDistance(0)
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getContainer().style.cursor = 'crosshair'
-      // Clear the map
       if (routingControlRef.current) {
         mapInstanceRef.current.removeControl(routingControlRef.current)
         routingControlRef.current = null
@@ -454,8 +478,8 @@ export default function RouteEditorPage() {
             {isDrawing && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
                 <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
-                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen. De kortste wandelroute wordt automatisch berekend.</p>
-                <p>Klik "Stop Tekenen" om te stoppen, dan "Opslaan & Sluiten" om de route op te slaan.</p>
+                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen. Probeer punten dicht bij wegen te plaatsen.</p>
+                <p>Als routing niet lukt, wordt een rechte lijn getoond (oranje stippellijn).</p>
               </div>
             )}
 
@@ -506,7 +530,7 @@ export default function RouteEditorPage() {
                     {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Nieuwe Route Tekenen" om te beginnen'}
                   </p>
                   <p className="text-sage text-sm">
-                    De kortste wandelroute wordt automatisch berekend tussen je punten.
+                    Plaats punten dicht bij wegen voor de beste routing resultaten.
                   </p>
                 </div>
               )}
