@@ -1,6 +1,7 @@
-"use client" // Mark this file as a client-side module
+"use client"
 
 import { createClient as createBrowserClient } from '@supabase/supabase-js'
+import { login, isAuthenticated, logout, getCurrentUser } from './auth-client' // Import from new auth file
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -148,32 +149,5 @@ export async function deleteRoute(id: string): Promise<boolean> {
   }
 }
 
-// Authentication functions (keeping simple for now)
-export function login(username: string, password: string): boolean {
-  // Simple demo authentication - in production you'd use Supabase Auth
-  if (username === "admin" && password === "wandelen123") {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("username", username)
-    }
-    return true
-  }
-  return false
-}
-
-export function isAuthenticated(): boolean {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("isLoggedIn") === "true"
-  }
-  return false
-}
-
-export function getCurrentUser(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("username") || ""
-  }
-  return ""
-}
-
-// Added a comment to force re-processing of this file.
-// This comment does not affect functionality.
+// Re-export authentication functions from auth-client.ts
+export { login, isAuthenticated, logout, getCurrentUser }
