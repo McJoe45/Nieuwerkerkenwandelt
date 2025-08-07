@@ -1,6 +1,6 @@
 # Nieuwerkerken Wandelt
 
-Dit is een Next.js applicatie voor het beheren en weergeven van wandelroutes in en rond Nieuwerkerken...
+Dit is een Next.js applicatie voor het beheren en weergeven van wandelroutes in en rond Nieuwerkerken.
 
 ## Features
 
