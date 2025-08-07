@@ -73,7 +73,7 @@ const gehuchten = [
   },
   {
     id: 14,
-    name: "Hoezekouterr",
+    name: "Hoezekouter",
     description: "Misschien wel het minst betreden gehucht. Vroeger een open vlakte, nu met een reusachtige windmolen als baken. Voor velen een reden om om te keren, maar wie zoekt via nog wel het mooie voetpad naar de Restert."
   },
   {
