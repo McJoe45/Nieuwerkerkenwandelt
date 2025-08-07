@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp, ArrowUpDown } from 'lucide-react'
+import { Plus, MapPin, Ruler, Droplets, Clock, TrendingUp, ArrowUpDown, Info, TreePine } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -85,6 +85,28 @@ export default function HomePage() {
           <p className="text-lg sm:text-xl text-sage max-w-2xl mx-auto leading-relaxed font-light">
             Ontdek het dorp, zijn gehuchten en de groen wandelpaden en steegjes.
           </p>
+        </div>
+
+        {/* Info Buttons Section */}
+        <div className="mb-16 flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link href="/over-nieuwerkerken">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-sage-light to-sage-lighter hover:from-sage-lighter hover:to-sage-light text-white border-0 transition-all duration-300 hover:scale-105 shadow-lg px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg title-font"
+            >
+              <Info className="w-5 h-5 mr-2" />
+              Over Nieuwerkerken en de gehuchten
+            </Button>
+          </Link>
+          <Link href="/over-wandelen">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-sage-light to-sage-lighter hover:from-sage-lighter hover:to-sage-light text-white border-0 transition-all duration-300 hover:scale-105 shadow-lg px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg title-font"
+            >
+              <TreePine className="w-5 h-5 mr-2" />
+              Over wandelen in Nieuwerkerken
+            </Button>
+          </Link>
         </div>
 
         {/* Sorting Section */}
