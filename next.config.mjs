@@ -14,15 +14,11 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'tile.openstreetmap.org',
+        hostname: 'blob.v0.dev',
       },
       {
         protocol: 'https',
-        hostname: 'assets.example.com', // Example for remote images
-      },
-      {
-        protocol: 'https',
-        hostname: 'blob.v0.dev', // Allow images from v0 blob storage
+        hostname: 'assets.example.com', // Example for placeholder.svg
       },
     ],
     unoptimized: true,

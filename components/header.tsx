@@ -1,66 +1,70 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase'
-import { User, LogOut } from 'lucide-react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
-export default async function Header() {
+export default function Header() {
   const supabase = createClient()
+  const router = useRouter()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsLoggedIn(!!user)
+    }
+    checkUser()
 
-  const signOut = async () => {
-    'use server'
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    return redirect('/login')
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user)
+    })
+
+    return () => {
+      authListener?.unsubscribe()
+    }
+  }, [supabase])
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Error logging out:', error.message)
+    } else {
+      router.push('/login')
+    }
   }
 
   return (
-    <header className="bg-sage-dark text-white py-4 px-6 flex items-center justify-between shadow-md">
-      <Link href="/" className="flex items-center gap-2">
-        <Image
-          src="/images/nieuwerkerken-logo.png"
-          alt="Nieuwerkerken Wandelt Logo"
-          width={40}
-          height={40}
-          className="rounded-full"
-          priority
-        />
-        <span className="text-xl font-bold title-font">Nieuwerkerken Wandelt</span>
-      </Link>
-      <nav className="flex items-center gap-4">
-        {user ? (
-          <>
-            <Link href="/create-route" passHref>
-              <Button variant="ghost" className="text-white hover:bg-sage-light/20">
-                Nieuwe Route
-              </Button>
+    <header className="bg-sage-dark text-white p-4 shadow-md">
+      <div className="container mx-auto flex items-center justify-between">
+        <Link href="/" className="flex items-center space-x-3">
+          <Image
+            src="/public/images/nieuwerkerken-logo.png"
+            alt="Nieuwerkerken Wandelt Logo"
+            width={40}
+            height={40}
+            className="rounded-full"
+          />
+          <span className="text-xl font-bold">Nieuwerkerken Wandelt</span>
+        </Link>
+        <nav className="space-x-4">
+          {isLoggedIn ? (
+            <>
+              <Link href="/admin" passHref>
+                <Button variant="ghost" className="text-white hover:bg-sage-light">Admin</Button>
+              </Link>
+              <Button onClick={handleLogout} variant="ghost" className="text-white hover:bg-sage-light">Uitloggen</Button>
+            </>
+          ) : (
+            <Link href="/login" passHref>
+              <Button variant="ghost" className="text-white hover:bg-sage-light">Login</Button>
             </Link>
-            <Link href="/admin" passHref>
-              <Button variant="ghost" className="text-white hover:bg-sage-light/20">
-                Admin
-              </Button>
-            </Link>
-            <form action={signOut}>
-              <Button variant="ghost" className="text-white hover:bg-sage-light/20">
-                <LogOut className="w-4 h-4 mr-2" />
-                Uitloggen
-              </Button>
-            </form>
-          </>
-        ) : (
-          <Link href="/login" passHref>
-            <Button variant="ghost" className="text-white hover:bg-sage-light/20">
-              <User className="w-4 h-4 mr-2" />
-              Inloggen
-            </Button>
-          </Link>
-        )}
-      </nav>
+          )}
+        </nav>
+      </div>
     </header>
   )
 }

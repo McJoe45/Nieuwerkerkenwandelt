@@ -1,183 +1,187 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
-import L from 'leaflet'
+import { useState, useEffect, useCallback } from 'react'
+import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Header from '@/components/header'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Ruler, Edit } from 'lucide-react'
+import { ArrowLeft, Ruler, Pencil } from 'lucide-react'
+import { createClient } from '@/lib/supabase'
 
-// Fix for default icon issues with Webpack
-delete (L.Icon.Default.prototype as any)._get='_getIconUrl';
+// Fix for default Leaflet icon issue with Webpack
+delete (L.Icon.Default.prototype as any)._get='iconUrl';
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-interface RouteData {
-  id: string;
-  name: string;
-  description: string;
-  distance: number;
-  gehuchten: string[];
-  geojson: any;
+interface Route {
+  id: string
+  name: string
+  description: string
+  distance: number
+  coordinates: { lat: number; lng: number }[]
+  created_at: string
+}
+
+interface MapUpdaterProps {
+  center: L.LatLngExpression
+  zoom: number
+  polyline: L.LatLngExpression[]
+}
+
+function MapUpdater({ center, zoom, polyline }: MapUpdaterProps) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (center) {
+      map.setView(center, zoom)
+    }
+    if (polyline && polyline.length > 0) {
+      const bounds = L.latLngBounds(polyline)
+      map.fitBounds(bounds, { padding: [50, 50] })
+    }
+  }, [map, center, zoom, polyline])
+
+  return null
 }
 
 export default function RouteDetailPage({ params }: { params: { id: string } }) {
-  const router = useRouter()
   const { id } = params
-  const [route, setRoute] = useState<RouteData | null>(null)
+  const [route, setRoute] = useState<Route | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstance = useRef<L.Map | null>(null)
-  const routeLayer = useRef<L.GeoJSON | null>(null)
   const supabase = createClient()
 
   const fetchRoute = useCallback(async () => {
     setLoading(true)
-    setError(null)
-    const { data, error: fetchError } = await supabase.from('routes').select('*').eq('id', id).single()
+    const { data, error } = await supabase
+      .from('routes')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (fetchError) {
-      console.error('Error fetching route:', fetchError)
-      setError('Fout bij het laden van de route.')
-      setLoading(false)
-      return
-    }
-
-    if (data) {
+    if (error) {
+      console.error('Error fetching route:', error)
+      setRoute(null)
+    } else if (data) {
       setRoute(data)
-      setLoading(false)
-
-      if (mapInstance.current && data.geojson) {
-        if (routeLayer.current) {
-          mapInstance.current.removeLayer(routeLayer.current)
-        }
-        routeLayer.current = L.geoJSON(data.geojson, {
-          style: {
-            color: '#6B8E23', // Sage green
-            weight: 5,
-            opacity: 0.7
-          }
-        }).addTo(mapInstance.current)
-
-        mapInstance.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 50] })
-      }
-    } else {
-      setError('Route niet gevonden.')
-      setLoading(false)
     }
+    setLoading(false)
   }, [id, supabase])
 
   useEffect(() => {
-    if (mapRef.current && !mapInstance.current) {
-      mapInstance.current = L.map(mapRef.current).setView([50.93, 3.98], 13) // Centered around Nieuwerkerken
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(mapInstance.current)
-    }
-
     fetchRoute()
 
-    // Re-fetch when window gains focus (for real-time updates)
-    const handleFocus = () => fetchRoute()
+    // Re-fetch when window gains focus (e.g., returning from another tab)
+    const handleFocus = () => {
+      fetchRoute()
+    }
     window.addEventListener('focus', handleFocus)
 
     return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove()
-        mapInstance.current = null
-      }
       window.removeEventListener('focus', handleFocus)
     }
   }, [fetchRoute])
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <p className="text-sage-dark text-xl">Route laden...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center p-6">
-        <p className="text-red-500 text-xl mb-4">{error}</p>
-        <Link href="/">
-          <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
-        </Link>
+      <div className="min-h-screen flex items-center justify-center bg-cream">
+        <p className="text-sage-dark">Laden...</p>
       </div>
     )
   }
 
   if (!route) {
     return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center p-6">
-        <p className="text-sage-dark text-xl mb-4">Geen routegegevens beschikbaar.</p>
-        <Link href="/">
-          <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
-        </Link>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-cream p-6">
+        <Header />
+        <Card className="w-full max-w-md bg-white shadow-lg border-2 border-beige">
+          <CardHeader>
+            <CardTitle className="text-sage-dark text-2xl">Route niet gevonden</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sage mb-4">De gevraagde route kon niet worden geladen.</p>
+            <Link href="/">
+              <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
+  const polylinePath = route.coordinates ? route.coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[] : []
+  const mapCenter: L.LatLngExpression = polylinePath.length > 0 ? polylinePath[0] : [50.93, 3.98] // Default to Nieuwerkerken if no coords
+
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream flex flex-col">
       <Header />
-      <main className="container mx-auto px-6 py-12">
-        <div className="mb-8 flex justify-between items-center">
-          <Link href="/">
-            <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Terug naar overzicht
-            </Button>
-          </Link>
-          <Link href={`/edit-route/${route.id}`}>
-            <Button className="bg-sage hover:bg-sage-dark text-white">
-              <Edit className="w-4 h-4 mr-2" />
-              Route Bewerken
-            </Button>
-          </Link>
-        </div>
-
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-sage-dark mb-6 tracking-wide leading-tight title-font">
-          {route.name}
-        </h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="border-2 border-beige bg-white shadow-sm">
+      <main className="flex-1 container mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full flex flex-col">
             <CardHeader>
-              <CardTitle className="text-sage-dark">Route Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sage">
-              <p className="text-lg leading-relaxed font-light">{route.description}</p>
-              <div className="flex items-center text-base">
-                <Ruler className="w-5 h-5 mr-2 text-sage-light" />
-                <span>Afstand: {route.distance ? `${route.distance.toFixed(2)} km` : 'N/A km'}</span>
+              <div className="flex items-center justify-between mb-4">
+                <Link href="/">
+                  <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Terug naar overzicht
+                  </Button>
+                </Link>
+                <Link href={`/route-editor/${route.id}`}>
+                  <Button className="bg-sage hover:bg-sage-dark text-white font-semibold py-2 px-4 rounded-full shadow-md transition-all duration-300 text-sm">
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Bewerken
+                  </Button>
+                </Link>
               </div>
-              {route.gehuchten && route.gehuchten.length > 0 && (
-                <div className="flex items-center text-base">
-                  <MapPin className="w-5 h-5 mr-2 text-sage-light" />
-                  <span>Gehuchten: {route.gehuchten.join(', ')}</span>
-                </div>
-              )}
+              <CardTitle className="text-sage-dark text-3xl mb-2 title-font">{route.name}</CardTitle>
+              <div className="flex items-center text-sage-dark text-base font-medium">
+                <Ruler className="w-4 h-4 mr-2 text-sage-light" />
+                <span>{route.distance ? `${route.distance.toFixed(2)} km` : 'N/A km'}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col">
+              <p className="text-sage text-base leading-relaxed font-light mb-6 flex-1">
+                {route.description}
+              </p>
+              <div className="text-sm text-gray-500 mt-auto">
+                Aangemaakt op: {new Date(route.created_at).toLocaleDateString()}
+              </div>
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="border-2 border-beige bg-white shadow-sm">
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full">
             <CardHeader>
-              <CardTitle className="text-sage-dark">Route Kaart</CardTitle>
+              <CardTitle className="text-sage-dark text-2xl">Route Kaart</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div id="map" ref={mapRef} className="w-full h-[400px] rounded-md border border-beige" key={route.id}></div>
+            <CardContent className="h-[500px] w-full">
+              <MapContainer
+                center={mapCenter}
+                zoom={13}
+                scrollWheelZoom={true}
+                className="h-full w-full rounded-lg shadow-inner"
+                key={route.id} // Force re-render map when route changes
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {polylinePath.length > 0 && (
+                  <>
+                    <Polyline positions={polylinePath} color="#6B8E23" weight={5} />
+                    {polylinePath.map((pos, index) => (
+                      <Marker key={index} position={pos} />
+                    ))}
+                  </>
+                )}
+                <MapUpdater center={mapCenter} zoom={13} polyline={polylinePath} />
+              </MapContainer>
             </CardContent>
           </Card>
         </div>

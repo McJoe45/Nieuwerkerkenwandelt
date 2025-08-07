@@ -1,20 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { ExternalLink, Edit } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { isAuthenticated, getRouteById } from "@/lib/supabase"
+import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { Button } from "@/components/ui/button"
+import { isAuthenticated } from "@/lib/supabase"
+import { ExternalLink, Edit } from 'lucide-react'
 
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
-// Fix for default icon issues with Webpack
-delete (L.Icon.Default.prototype as any)._get='_getIconUrl';
+// Fix for default Leaflet icon issue with Webpack
+delete (L.Icon.Default.prototype as any)._get='iconUrl';
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -22,7 +16,8 @@ L.Icon.Default.mergeOptions({
 });
 
 interface RouteMapProps {
-  geojson: any;
+  coordinates: { lat: number; lng: number }[]
+  id: string // Unique ID to force re-render
   routeName?: string
   routeId?: string
   editable?: boolean
@@ -30,56 +25,73 @@ interface RouteMapProps {
   className?: string
 }
 
-export default function RouteMap({
-  geojson,
-  routeName,
-  routeId,
-  editable = false,
-  onCoordinatesChange,
-  className = "h-96 w-full rounded-lg",
-}: RouteMapProps) {
-  const [isClient, setIsClient] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+export default function RouteMap({ coordinates, id, routeName, routeId, editable = false, onCoordinatesChange, className = "h-96 w-full rounded-lg" }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstance = useRef<L.Map | null>(null)
-  const routeLayer = useRef<L.GeoJSON | null>(null)
+  const leafletMapRef = useRef<L.Map | null>(null)
+  const polylineRef = useRef<L.Polyline | null>(null)
+  const markersRef = useRef<L.Marker[]>([])
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    setIsClient(true)
     setIsLoggedIn(isAuthenticated())
   }, [])
 
   useEffect(() => {
-    if (mapRef.current && !mapInstance.current) {
-      mapInstance.current = L.map(mapRef.current).setView([50.93, 3.98], 13) // Centered around Nieuwerkerken
+    if (!mapRef.current) return
+
+    if (!leafletMapRef.current) {
+      // Initialize map only once
+      leafletMapRef.current = L.map(mapRef.current, {
+        center: [50.93, 3.98], // Default center for Nieuwerkerken
+        zoom: 13,
+        scrollWheelZoom: true,
+      })
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(mapInstance.current)
+      }).addTo(leafletMapRef.current)
     }
 
-    if (mapInstance.current && geojson) {
-      if (routeLayer.current) {
-        mapInstance.current.removeLayer(routeLayer.current)
-      }
-      routeLayer.current = L.geoJSON(geojson, {
-        style: {
-          color: '#6B8E23', // Sage green
-          weight: 5,
-          opacity: 0.7
-        }
-      }).addTo(mapInstance.current)
+    const map = leafletMapRef.current
+    const polylinePath = coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[]
 
-      mapInstance.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 50] })
+    // Clear existing polyline and markers
+    if (polylineRef.current) {
+      map.removeLayer(polylineRef.current)
+    }
+    markersRef.current.forEach(marker => map.removeLayer(marker))
+    markersRef.current = []
+
+    if (polylinePath.length > 0) {
+      // Add new polyline
+      polylineRef.current = L.polyline(polylinePath, { color: '#6B8E23', weight: 5 }).addTo(map)
+
+      // Add markers
+      polylinePath.forEach((pos, index) => {
+        const marker = L.marker(pos).addTo(map)
+        markersRef.current.push(marker)
+      })
+
+      // Fit bounds to the polyline
+      const bounds = L.latLngBounds(polylinePath)
+      map.fitBounds(bounds, { padding: [50, 50] })
+    } else {
+      // If no coordinates, reset view to default center
+      map.setView([50.93, 3.98], 13)
     }
 
+    // Cleanup function
     return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove()
-        mapInstance.current = null
+      // No need to remove map, as it's managed by leafletMapRef.current
+      // Only clear layers if component unmounts or ID changes significantly
+      if (polylineRef.current) {
+        map.removeLayer(polylineRef.current)
+        polylineRef.current = null
       }
+      markersRef.current.forEach(marker => map.removeLayer(marker))
+      markersRef.current = []
     }
-  }, [geojson])
+  }, [coordinates, id]) // Re-run effect if coordinates or id change
 
   const openFullscreenMap = () => {
     if (!routeId) return
@@ -91,14 +103,6 @@ export default function RouteMap({
     if (!routeId) return
     const editorUrl = `/route-editor/${routeId}`
     window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
-  }
-
-  if (!isClient) {
-    return (
-      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
-        <p className="text-gray-500">Kaart wordt geladen...</p>
-      </div>
-    )
   }
 
   return (

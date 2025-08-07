@@ -1,10 +1,9 @@
 CREATE TABLE IF NOT EXISTS routes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
+  name VARCHAR(255) NOT NULL,
   description TEXT,
-  distance NUMERIC,
-  gehuchten TEXT[],
-  geojson JSONB,
+  distance NUMERIC(10, 2),
+  coordinates JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

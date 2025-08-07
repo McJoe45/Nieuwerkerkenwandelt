@@ -1,19 +1,27 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import Link from 'next/link'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Header from '@/components/header'
 import Image from 'next/image'
 
 export default function LoginPage() {
-  const signIn = async (formData: FormData) => {
-    'use server'
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const router = useRouter()
+  const supabase = createClient()
 
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
-    const supabase = createClient()
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -21,64 +29,69 @@ export default function LoginPage() {
     })
 
     if (error) {
-      console.error('Login error:', error.message)
-      // In a real app, you'd show an error message to the user
-      return redirect('/login?message=Could not authenticate user')
+      setMessage(error.message)
+    } else {
+      setMessage('Succesvol ingelogd!')
+      router.push('/admin') // Redirect to admin page on successful login
     }
-
-    return redirect('/')
+    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-cream flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-2 border-beige bg-white shadow-lg">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+    <div className="min-h-screen bg-cream flex flex-col">
+      <Header />
+      <main className="flex-1 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md bg-white shadow-lg border-2 border-beige">
+          <CardHeader className="text-center">
             <Image
-              src="/images/nieuwerkerken-logo.png"
+              src="/public/images/nieuwerkerken-logo.png"
               alt="Nieuwerkerken Wandelt Logo"
-              width={80}
-              height={80}
-              className="rounded-full"
+              width={150}
+              height={150}
+              className="mx-auto mb-4"
             />
-          </div>
-          <CardTitle className="text-3xl font-bold text-sage-dark">Welkom Terug</CardTitle>
-          <CardDescription className="text-sage">Log in om verder te gaan</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6">
-            <div>
-              <Label htmlFor="email" className="text-sage">E-mailadres</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                required
-                placeholder="jouw@email.com"
-                className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
-              />
-            </div>
-            <div>
-              <Label htmlFor="password" className="text-sage">Wachtwoord</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                placeholder="********"
-                className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
-              />
-            </div>
-            <Button formAction={signIn} className="w-full bg-sage hover:bg-sage-dark text-white font-semibold py-3 rounded-full shadow-md transition-all duration-300">
-              Inloggen
-            </Button>
-            {/* You can add a message display here if needed */}
-            {/* <p className="text-center text-sm text-red-500 mt-4">
-              {searchParams?.message}
-            </p> */}
-          </form>
-        </CardContent>
-      </Card>
+            <CardTitle className="text-sage-dark text-3xl">Login</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <Label htmlFor="email" className="text-sage-dark">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password" className="text-sage-dark">Wachtwoord</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
+                />
+              </div>
+              {message && (
+                <p className={`text-center text-sm ${message.includes('Succesvol') ? 'text-green-600' : 'text-red-600'}`}>
+                  {message}
+                </p>
+              )}
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base"
+              >
+                {loading ? 'Inloggen...' : 'Inloggen'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }

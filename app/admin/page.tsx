@@ -1,166 +1,97 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Plus, Edit, Trash2, MapPin, Users } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import Header from "@/components/header"
-import { getRoutes, deleteRoute, isAuthenticated } from "@/lib/supabase"
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Header from '@/components/header'
+import Link from 'next/link'
+import { PlusCircle, Trash2, Pencil } from 'lucide-react'
 
 interface Route {
   id: string
   name: string
-  gehuchten: string[]
-  distance: number
-  muddy: boolean
   description: string
-  coordinates: [number, number][]
-  difficulty: string
-  duration: string
+  distance: number
+  created_at: string
 }
 
 export default function AdminPage() {
-  const router = useRouter()
   const [routes, setRoutes] = useState<Route[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!isAuthenticated()) {
-        router.push("/login")
-        return
-      }
-
-      const routesData = await getRoutes()
-      setRoutes(routesData)
+  const fetchRoutes = async () => {
+    setLoading(true)
+    const { data, error } = await supabase.from('routes').select('*').order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error fetching routes:', error)
+    } else {
+      setRoutes(data || [])
     }
-    loadData()
-  }, [router])
-
-  const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Weet je zeker dat je de route "${name}" wilt verwijderen?`)) {
-      const success = await deleteRoute(id)
-      if (success) {
-        const routesData = await getRoutes()
-        setRoutes(routesData)
-      } else {
-        alert('Er is een fout opgetreden bij het verwijderen van de route.')
-      }
-    }
+    setLoading(false)
   }
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Gemakkelijk":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "Matig":
-        return "bg-amber-100 text-amber-800 border-amber-200"
-      case "Moeilijk":
-        return "bg-red-100 text-red-800 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+  useEffect(() => {
+    fetchRoutes()
+  }, [])
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Weet je zeker dat je deze route wilt verwijderen?')) {
+      const { error } = await supabase.from('routes').delete().eq('id', id)
+      if (error) {
+        console.error('Error deleting route:', error)
+        alert('Fout bij het verwijderen van de route.')
+      } else {
+        alert('Route succesvol verwijderd!')
+        fetchRoutes() // Refresh the list
+      }
     }
   }
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream flex flex-col">
       <Header />
-
-      <main className="container mx-auto px-6 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-sage-dark title-font">Route Beheer</h1>
-          <Link href="/create-route">
-            <Button className="bg-sage-light hover:bg-sage-lighter text-white">
-              <Plus className="w-4 h-4 mr-2" />
-              Nieuwe Route
-            </Button>
-          </Link>
-        </div>
-
-        {routes.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 bg-sage-light/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Users className="w-10 h-10 text-sage" />
-            </div>
-            <h3 className="text-2xl font-bold text-sage-dark mb-3 title-font">Nog geen routes</h3>
-            <p className="text-sage max-w-md mx-auto font-light mb-6">
-              Maak je eerste wandelroute aan om te beginnen.
-            </p>
+      <main className="flex-1 container mx-auto px-6 py-12">
+        <Card className="bg-white shadow-lg border-2 border-beige">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sage-dark text-2xl">Route Beheer</CardTitle>
             <Link href="/create-route">
-              <Button className="bg-sage-light hover:bg-sage-lighter text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Eerste Route Aanmaken
+              <Button className="bg-sage hover:bg-sage-dark text-white font-semibold py-2 px-4 rounded-full shadow-md transition-all duration-300 text-sm">
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Nieuwe Route
               </Button>
             </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {routes.map((route) => (
-              <Card key={route.id} className="border-2 border-beige bg-white hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-sage-light rounded-lg flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg text-sage-dark title-font">
-                          {route.name}
-                        </CardTitle>
-                        <p className="text-sm text-sage">
-                          {route.gehuchten.join(" • ")}
-                        </p>
-                      </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sage-dark">Routes laden...</p>
+            ) : routes.length === 0 ? (
+              <p className="text-sage">Geen routes gevonden. Maak een nieuwe route aan!</p>
+            ) : (
+              <div className="space-y-4">
+                {routes.map((route) => (
+                  <div key={route.id} className="flex items-center justify-between p-4 border border-beige rounded-lg bg-white shadow-sm">
+                    <div>
+                      <h3 className="font-semibold text-sage-dark">{route.name}</h3>
+                      <p className="text-sm text-sage">{route.distance.toFixed(2)} km</p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Link href={`/edit-route/${route.id}`}>
+                        <Button variant="outline" size="sm" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                      <Button variant="destructive" size="sm" onClick={() => handleDelete(route.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between text-sm text-sage">
-                    <span>{route.distance} km</span>
-                    <span>{route.duration}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge className={getDifficultyColor(route.difficulty)}>
-                      {route.difficulty}
-                    </Badge>
-                    {route.muddy && (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                        Modderpad
-                      </Badge>
-                    )}
-                  </div>
-
-                  <p className="text-sm text-sage line-clamp-2">{route.description}</p>
-
-                  <div className="flex gap-2 pt-2">
-                    <Link href={`/route/${route.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full border-sage-light text-sage-dark hover:bg-sage-lightest">
-                        Bekijken
-                      </Button>
-                    </Link>
-                    <Link href={`/edit-route/${route.id}`}>
-                      <Button variant="outline" size="sm" className="border-sage-light text-sage-dark hover:bg-sage-lightest">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(route.id, route.name)}
-                      className="border-red-300 text-red-700 hover:bg-red-100"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

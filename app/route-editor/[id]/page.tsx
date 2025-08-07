@@ -1,268 +1,272 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import 'leaflet-draw/dist/leaflet.draw.css'
-import 'leaflet-draw'
+import { createClient } from '@/lib/supabase'
 import Header from '@/components/header'
+import { ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 
-// Fix for default icon issues with Webpack
-delete (L.Icon.Default.prototype as any)._get='_getIconUrl';
+// Fix for default Leaflet icon issue with Webpack
+delete (L.Icon.Default.prototype as any)._get='iconUrl';
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-interface RouteData {
-  id?: string;
-  name: string;
-  description: string;
-  distance: number;
-  gehuchten: string[];
-  geojson: any;
+interface Route {
+  id: string
+  name: string
+  description: string
+  distance: number
+  coordinates: { lat: number; lng: number }[]
+  created_at: string
+}
+
+interface MapUpdaterProps {
+  center: L.LatLngExpression
+  zoom: number
+  polyline: L.LatLngExpression[]
+}
+
+function MapUpdater({ center, zoom, polyline }: MapUpdaterProps) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (center) {
+      map.setView(center, zoom)
+    }
+    if (polyline && polyline.length > 0) {
+      const bounds = L.latLngBounds(polyline)
+      map.fitBounds(bounds, { padding: [50, 50] })
+    }
+  }, [map, center, zoom, polyline])
+
+  return null
 }
 
 export default function RouteEditorPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { id } = params
-  const isNewRoute = id === 'new'
-  const [routeData, setRouteData] = useState<RouteData>({
-    name: '',
-    description: '',
-    distance: 0,
-    gehuchten: [],
-    geojson: null,
-  })
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstance = useRef<L.Map | null>(null)
-  const editableLayers = useRef<L.FeatureGroup | null>(null)
-  const drawControl = useRef<L.Control.Draw | null>(null)
   const supabase = createClient()
 
-  const calculateDistance = useCallback((geojson: any): number => {
-    if (!geojson || !geojson.coordinates || geojson.coordinates.length < 2) {
-      return 0
-    }
+  const [route, setRoute] = useState<Route | null>(null)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [distance, setDistance] = useState(0)
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
+  const calculateDistance = useCallback((coords: { lat: number; lng: number }[]) => {
     let totalDistance = 0
-    for (let i = 0; i < geojson.coordinates.length - 1; i++) {
-      const p1 = L.latLng(geojson.coordinates[i][1], geojson.coordinates[i][0])
-      const p2 = L.latLng(geojson.coordinates[i + 1][1], geojson.coordinates[i + 1][0])
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p1 = L.latLng(coords[i].lat, coords[i].lng)
+      const p2 = L.latLng(coords[i + 1].lat, coords[i + 1].lng)
       totalDistance += p1.distanceTo(p2)
     }
     return totalDistance / 1000 // Convert meters to kilometers
   }, [])
 
   useEffect(() => {
-    if (mapRef.current && !mapInstance.current) {
-      mapInstance.current = L.map(mapRef.current).setView([50.93, 3.98], 13) // Centered around Nieuwerkerken
+    const fetchRoute = async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('routes')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(mapInstance.current)
-
-      editableLayers.current = new L.FeatureGroup().addTo(mapInstance.current)
-
-      drawControl.current = new L.Control.Draw({
-        edit: {
-          featureGroup: editableLayers.current,
-          poly: {
-            allowIntersection: false
-          }
-        },
-        draw: {
-          polygon: {
-            allowIntersection: false,
-            showArea: true
-          },
-          polyline: {
-            metric: true
-          },
-          circle: false,
-          rectangle: false,
-          marker: false,
-          circlemarker: false
-        }
-      })
-      mapInstance.current.addControl(drawControl.current)
-
-      mapInstance.current.on(L.Draw.Event.CREATED, (e: any) => {
-        const layer = e.layer
-        editableLayers.current?.addLayer(layer)
-        const geojson = layer.toGeoJSON()
-        const distance = calculateDistance(geojson.geometry)
-        setRouteData(prev => ({ ...prev, geojson: geojson.geometry, distance }))
-      })
-
-      mapInstance.current.on(L.Draw.Event.EDITED, (e: any) => {
-        e.layers.each((layer: any) => {
-          const geojson = layer.toGeoJSON()
-          const distance = calculateDistance(geojson.geometry)
-          setRouteData(prev => ({ ...prev, geojson: geojson.geometry, distance }))
-        })
-      })
-
-      mapInstance.current.on(L.Draw.Event.DELETED, () => {
-        setRouteData(prev => ({ ...prev, geojson: null, distance: 0 }))
-      })
+      if (error) {
+        console.error('Error fetching route:', error)
+        setRoute(null)
+      } else if (data) {
+        setRoute(data)
+        setName(data.name)
+        setDescription(data.description)
+        setDistance(data.distance)
+        setCoordinates(data.coordinates || [])
+      }
+      setLoading(false)
     }
 
-    if (!isNewRoute && mapInstance.current && editableLayers.current) {
-      const fetchRoute = async () => {
-        const { data, error } = await supabase.from('routes').select('*').eq('id', id).single()
-        if (error) {
-          console.error('Error fetching route:', error)
-          // Handle error, maybe redirect or show a message
-          return
-        }
-        if (data) {
-          setRouteData({
-            name: data.name,
-            description: data.description || '',
-            distance: data.distance || 0,
-            gehuchten: data.gehuchten || [],
-            geojson: data.geojson,
-          })
-
-          if (data.geojson) {
-            editableLayers.current?.clearLayers()
-            const layer = L.geoJSON(data.geojson)
-            layer.eachLayer((l) => {
-              editableLayers.current?.addLayer(l)
-            })
-            mapInstance.current?.fitBounds(editableLayers.current.getBounds())
-          }
-        }
-      }
+    if (id) {
       fetchRoute()
     }
-  }, [id, isNewRoute, calculateDistance])
+  }, [id, supabase])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setRouteData(prev => ({ ...prev, [name]: value }))
-  }
+  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
+    const newCoordinates = [...coordinates, e.latlng]
+    setCoordinates(newCoordinates)
+    setDistance(calculateDistance(newCoordinates))
+  }, [coordinates, calculateDistance])
 
-  const handleGehuchtenChange = (value: string) => {
-    setRouteData(prev => ({ ...prev, gehuchten: value ? value.split(',').map(g => g.trim()) : [] }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!routeData.geojson) {
-      alert('Please draw a route on the map.')
-      return
+  const handleSave = async () => {
+    setSaving(true)
+    const routeData = {
+      name,
+      description,
+      distance,
+      coordinates,
     }
 
-    if (isNewRoute) {
-      const { data, error } = await supabase.from('routes').insert([routeData]).select()
-      if (error) {
-        console.error('Error creating route:', error)
-        alert('Fout bij het aanmaken van de route.')
-      } else {
-        alert('Route succesvol aangemaakt!')
-        router.push(`/route/${data[0].id}`)
-      }
+    const { error } = await supabase
+      .from('routes')
+      .update(routeData)
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error saving route:', error)
+      alert('Fout bij het opslaan van de route.')
     } else {
-      const { data, error } = await supabase.from('routes').update(routeData).eq('id', id).select()
-      if (error) {
-        console.error('Error updating route:', error)
-        alert('Fout bij het bijwerken van de route.')
-      } else {
-        alert('Route succesvol bijgewerkt!')
-        router.push(`/route/${data[0].id}`)
-      }
+      alert('Route succesvol opgeslagen!')
+      router.push(`/route/${id}`) // Navigate back to the route detail page
     }
+    setSaving(false)
   }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream">
+        <p className="text-sage-dark">Laden...</p>
+      </div>
+    )
+  }
+
+  if (!route) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-cream p-6">
+        <Header />
+        <Card className="w-full max-w-md bg-white shadow-lg border-2 border-beige">
+          <CardHeader>
+            <CardTitle className="text-sage-dark text-2xl">Route niet gevonden</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sage mb-4">De gevraagde route kon niet worden geladen.</p>
+            <Link href="/">
+              <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const polylinePath = coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[]
+  const mapCenter: L.LatLngExpression = coordinates.length > 0 ? coordinates[0] : [50.93, 3.98] // Default to Nieuwerkerken if no coords
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream flex flex-col">
       <Header />
-      <main className="container mx-auto px-6 py-12">
-        <h1 className="text-3xl font-bold text-sage-dark mb-8">
-          {isNewRoute ? 'Nieuwe Route Maken' : `Route Bewerken: ${routeData.name}`}
-        </h1>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="border-2 border-beige bg-white shadow-sm">
+      <main className="flex-1 container mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full flex flex-col">
             <CardHeader>
-              <CardTitle className="text-sage-dark">Route Details</CardTitle>
+              <div className="flex items-center justify-between mb-4">
+                <Link href={`/route/${id}`}>
+                  <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Terug naar route
+                  </Button>
+                </Link>
+                <CardTitle className="text-sage-dark text-2xl">Route Bewerken</CardTitle>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex-1 flex flex-col space-y-6">
               <div>
-                <Label htmlFor="name" className="text-sage">Naam</Label>
+                <Label htmlFor="name" className="text-sage-dark">Naam</Label>
                 <Input
                   id="name"
-                  name="name"
-                  value={routeData.name}
-                  onChange={handleChange}
-                  required
-                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
                 />
               </div>
               <div>
-                <Label htmlFor="description" className="text-sage">Beschrijving</Label>
+                <Label htmlFor="description" className="text-sage-dark">Beschrijving</Label>
                 <Textarea
                   id="description"
-                  name="description"
-                  value={routeData.description}
-                  onChange={handleChange}
-                  rows={4}
-                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={5}
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
                 />
               </div>
               <div>
-                <Label htmlFor="distance" className="text-sage">Afstand (km)</Label>
+                <Label htmlFor="distance" className="text-sage-dark">Afstand (km)</Label>
                 <Input
                   id="distance"
-                  name="distance"
                   type="number"
-                  value={routeData.distance.toFixed(2)}
+                  value={distance.toFixed(2)}
                   readOnly
-                  className="border-beige text-sage-dark bg-gray-50 cursor-not-allowed"
+                  className="mt-1 border-beige bg-gray-50 text-sage-dark"
                 />
               </div>
-              <div>
-                <Label htmlFor="gehuchten" className="text-sage">Gehuchten (komma-gescheiden)</Label>
-                <Input
-                  id="gehuchten"
-                  name="gehuchten"
-                  value={routeData.gehuchten.join(', ')}
-                  onChange={(e) => handleGehuchtenChange(e.target.value)}
-                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
-                />
+              <div className="flex-1 flex items-end justify-end">
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !name || coordinates.length < 2}
+                  className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base"
+                >
+                  {saving ? 'Opslaan...' : 'Route Opslaan'}
+                </Button>
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="border-2 border-beige bg-white shadow-sm">
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full">
             <CardHeader>
-              <CardTitle className="text-sage-dark">Route Tekenen</CardTitle>
+              <CardTitle className="text-sage-dark text-2xl">Kaart Bewerken</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div id="map" ref={mapRef} className="w-full h-[400px] rounded-md border border-beige"></div>
-              <p className="text-sm text-gray-500 mt-2">
-                Gebruik de tekentools op de kaart om de route te tekenen of te bewerken.
-              </p>
+            <CardContent className="h-[500px] w-full">
+              <MapContainer
+                center={mapCenter}
+                zoom={13}
+                scrollWheelZoom={true}
+                className="h-full w-full rounded-lg shadow-inner"
+                whenCreated={map => {
+                  map.on('click', handleMapClick);
+                }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {polylinePath.length > 0 && (
+                  <>
+                    <Polyline positions={polylinePath} color="#6B8E23" weight={5} />
+                    {polylinePath.map((pos, index) => (
+                      <Marker key={index} position={pos} />
+                    ))}
+                  </>
+                )}
+                <MapUpdater center={mapCenter} zoom={13} polyline={polylinePath} />
+              </MapContainer>
+              <p className="text-sage text-sm mt-4">Klik op de kaart om punten toe te voegen. De afstand wordt automatisch berekend.</p>
+              <Button
+                onClick={() => {
+                  setCoordinates([]);
+                  setDistance(0);
+                }}
+                variant="destructive"
+                className="mt-4"
+              >
+                Wis alle punten
+              </Button>
             </CardContent>
           </Card>
-
-          <div className="lg:col-span-2 flex justify-end">
-            <Button type="submit" className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base">
-              {isNewRoute ? 'Route Aanmaken' : 'Route Opslaan'}
-            </Button>
-          </div>
-        </form>
+        </div>
       </main>
     </div>
   )

@@ -33,10 +33,10 @@ export default function OverWandelenPage() {
 
         {/* Placeholder Image */}
         <div className="mb-16 flex justify-center">
-          <div className="relative w-full max-w-3xl h-64 sm:h-80 md:h-96 bg-gray-200 rounded-xl flex items-center justify-center text-gray-500">
+          <div className="relative w-full max-w-3xl h-64 sm:h-80 md:h-96 bg-gray-200 rounded-xl flex items-center justify-center text-gray-500 text-lg">
             <Image
               src="/placeholder.svg?height=384&width=768"
-              alt="Plaatsaanduiding voor wandelafbeelding"
+              alt="Placeholder afbeelding voor wandelen in Nieuwerkerken"
               fill
               style={{ objectFit: 'cover' }}
               className="rounded-xl"
@@ -47,13 +47,13 @@ export default function OverWandelenPage() {
         {/* Explanatory Text */}
         <div className="max-w-3xl mx-auto text-center text-sage text-lg leading-relaxed font-light">
           <p className="mb-4">
-            Nieuwerkerken, met zijn diverse landschappen en charmante gehuchten, biedt een unieke wandelervaring voor iedereen. Of je nu op zoek bent naar een korte, ontspannende wandeling door het dorp of een langere tocht door uitgestrekte velden en bossen, je vindt hier altijd een route die bij je past.
+            Nieuwerkerken biedt een schat aan wandelmogelijkheden voor jong en oud. Van rustige veldwegen tot avontuurlijke bospaden, er is voor ieder wat wils. De diverse landschappen, van open kouters tot verborgen steegjes, maken elke wandeling uniek.
           </p>
           <p className="mb-4">
-            De wandelpaden zijn zorgvuldig uitgekozen om je de mooiste plekjes van de gemeente te laten ontdekken. Je wandelt langs historische bezienswaardigheden, door rustige natuurgebieden en langs pittoreske steegjes die je terug in de tijd voeren. Elk gehucht heeft zijn eigen karakter en verhaal, wat elke wandeling tot een nieuwe ontdekking maakt.
+            Ontdek de rijke geschiedenis van onze gehuchten, geniet van de lokale flora en fauna, en laat je verrassen door de verborgen pareltjes die Nieuwerkerken te bieden heeft. Of je nu op zoek bent naar een korte ommetje of een uitdagende dagtocht, hier vind je de perfecte route.
           </p>
           <p>
-            Vergeet niet comfortabele schoenen aan te trekken en te genieten van de rust en de natuur die Nieuwerkerken te bieden heeft. We hopen dat je een onvergetelijke tijd zult hebben op onze wandelpaden!
+            Vergeet niet comfortabele schoenen aan te trekken en te genieten van de frisse lucht en de prachtige omgeving. Veel wandelplezier!
           </p>
         </div>
       </main>

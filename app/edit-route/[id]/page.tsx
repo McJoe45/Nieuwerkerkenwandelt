@@ -1,361 +1,269 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, MapPin, Plus, Trash2 } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import Header from "@/components/header"
-import RouteMap from "@/components/route-map"
-import { getRouteById, updateRoute, isAuthenticated } from "@/lib/supabase"
-import type { Route } from "@/lib/supabase"
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase'
+import Header from '@/components/header'
+import { ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 
-export default function EditRoutePage() {
-  const params = useParams()
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [coordinates, setCoordinates] = useState<[number, number][]>([])
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    distance: 0,
-    duration: '',
-    difficulty: '',
-    muddy: false,
-    gehuchten: [''],
-    highlights: ['']
-  })
+// Fix for default Leaflet icon issue with Webpack
+delete (L.Icon.Default.prototype as any)._get='iconUrl';
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
+
+interface Route {
+  id: string
+  name: string
+  description: string
+  distance: number
+  coordinates: { lat: number; lng: number }[]
+  created_at: string
+}
+
+interface MapUpdaterProps {
+  center: L.LatLngExpression
+  zoom: number
+  polyline: L.LatLngExpression[]
+}
+
+function MapUpdater({ center, zoom, polyline }: MapUpdaterProps) {
+  const map = useMap()
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login')
-      return
+    if (center) {
+      map.setView(center, zoom)
     }
-
-    const loadRoute = async () => {
-      if (!params.id) return
-      
-      try {
-        const route = await getRouteById(params.id as string)
-        if (route) {
-          setFormData({
-            name: route.name,
-            description: route.description,
-            distance: route.distance,
-            duration: route.duration,
-            difficulty: route.difficulty,
-            muddy: route.muddy,
-            gehuchten: route.gehuchten && route.gehuchten.length > 0 ? route.gehuchten : [''],
-            highlights: route.highlights && route.highlights.length > 0 ? route.highlights : ['']
-          })
-          setCoordinates(route.coordinates)
-        } else {
-          alert('Route niet gevonden')
-          router.push('/')
-        }
-      } catch (error) {
-        console.error('Error loading route:', error)
-        alert('Fout bij het laden van de route')
-        router.push('/')
-      } finally {
-        setInitialLoading(false)
-      }
+    if (polyline && polyline.length > 0) {
+      const bounds = L.latLngBounds(polyline)
+      map.fitBounds(bounds, { padding: [50, 50] })
     }
+  }, [map, center, zoom, polyline])
 
-    loadRoute()
-  }, [params.id, router])
+  return null
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name || !formData.description || coordinates.length < 2) {
-      alert('Vul alle verplichte velden in en plaats minimaal 2 punten op de kaart.')
-      return
+export default function RouteEditorPage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const { id } = params
+  const supabase = createClient()
+
+  const [route, setRoute] = useState<Route | null>(null)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [distance, setDistance] = useState(0)
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const calculateDistance = useCallback((coords: { lat: number; lng: number }[]) => {
+    let totalDistance = 0
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p1 = L.latLng(coords[i].lat, coords[i].lng)
+      const p2 = L.latLng(coords[i + 1].lat, coords[i + 1].lng)
+      totalDistance += p1.distanceTo(p2)
     }
+    return totalDistance / 1000 // Convert meters to kilometers
+  }, [])
 
-    setLoading(true)
-    
-    try {
-      const routeData: Route = {
-        id: params.id as string,
-        name: formData.name,
-        description: formData.description,
-        distance: formData.distance,
-        duration: formData.duration,
-        difficulty: formData.difficulty,
-        muddy: formData.muddy,
-        gehuchten: formData.gehuchten.filter(g => g.trim() !== ''),
-        highlights: formData.highlights.filter(h => h.trim() !== ''),
-        coordinates: coordinates
-      }
+  useEffect(() => {
+    const fetchRoute = async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('routes')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-      const result = await updateRoute(routeData)
-      
-      if (result) {
-        router.push(`/route/${params.id}`)
-      } else {
-        alert('Er is een fout opgetreden bij het bijwerken van de route.')
+      if (error) {
+        console.error('Error fetching route:', error)
+        setRoute(null)
+      } else if (data) {
+        setRoute(data)
+        setName(data.name)
+        setDescription(data.description)
+        setDistance(data.distance)
+        setCoordinates(data.coordinates || [])
       }
-    } catch (error) {
-      console.error('Error updating route:', error)
-      alert('Er is een fout opgetreden bij het bijwerken van de route.')
-    } finally {
       setLoading(false)
     }
+
+    if (id) {
+      fetchRoute()
+    }
+  }, [id, supabase])
+
+  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
+    const newCoordinates = [...coordinates, e.latlng]
+    setCoordinates(newCoordinates)
+    setDistance(calculateDistance(newCoordinates))
+  }, [coordinates, calculateDistance])
+
+  const handleSave = async () => {
+    setSaving(true)
+    const routeData = {
+      name,
+      description,
+      distance,
+      coordinates,
+    }
+
+    const { error } = await supabase
+      .from('routes')
+      .update(routeData)
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error saving route:', error)
+      alert('Fout bij het opslaan van de route.')
+    } else {
+      alert('Route succesvol opgeslagen!')
+      router.push(`/route/${id}`) // Navigate back to the route detail page
+    }
+    setSaving(false)
   }
 
-  const addGehucht = () => {
-    setFormData(prev => ({
-      ...prev,
-      gehuchten: [...prev.gehuchten, '']
-    }))
-  }
-
-  const removeGehucht = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      gehuchten: prev.gehuchten.filter((_, i) => i !== index)
-    }))
-  }
-
-  const updateGehucht = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      gehuchten: prev.gehuchten.map((g, i) => i === index ? value : g)
-    }))
-  }
-
-  const addHighlight = () => {
-    setFormData(prev => ({
-      ...prev,
-      highlights: [...prev.highlights, '']
-    }))
-  }
-
-  const removeHighlight = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      highlights: prev.highlights.filter((_, i) => i !== index)
-    }))
-  }
-
-  const updateHighlight = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      highlights: prev.highlights.map((h, i) => i === index ? value : h)
-    }))
-  }
-
-  if (initialLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-cream">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p className="text-sage-dark">Route wordt geladen...</p>
-          </div>
-        </main>
+      <div className="min-h-screen flex items-center justify-center bg-cream">
+        <p className="text-sage-dark">Laden...</p>
       </div>
     )
   }
 
+  if (!route) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-cream p-6">
+        <Header />
+        <Card className="w-full max-w-md bg-white shadow-lg border-2 border-beige">
+          <CardHeader>
+            <CardTitle className="text-sage-dark text-2xl">Route niet gevonden</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sage mb-4">De gevraagde route kon niet worden geladen.</p>
+            <Link href="/">
+              <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const polylinePath = coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[]
+  const mapCenter: L.LatLngExpression = coordinates.length > 0 ? coordinates[0] : [50.93, 3.98] // Default to Nieuwerkerken if no coords
+
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream flex flex-col">
       <Header />
-      
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <Button 
-            variant="outline" 
-            onClick={() => router.push(`/route/${params.id}`)}
-            className="border-sage text-sage hover:bg-sage hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Terug naar route
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Form */}
-          <Card className="bg-white border-sage-light">
+      <main className="flex-1 container mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full flex flex-col">
             <CardHeader>
-              <CardTitle className="text-sage-dark flex items-center gap-2 title-font">
-                <MapPin className="w-5 h-5" />
-                Route Bewerken
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <Label htmlFor="name">Route Naam *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Bijv. Dendervallei Wandeling"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Beschrijving *</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Beschrijf de route..."
-                    rows={4}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="distance">Afstand (km) *</Label>
-                    <Input
-                      id="distance"
-                      type="number"
-                      step="0.1"
-                      value={formData.distance}
-                      onChange={(e) => setFormData(prev => ({ ...prev, distance: parseFloat(e.target.value) || 0 }))}
-                      placeholder="5.2"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="duration">Duur *</Label>
-                    <Input
-                      id="duration"
-                      value={formData.duration}
-                      onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
-                      placeholder="1u 15min"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="difficulty">Moeilijkheidsgraad *</Label>
-                  <Select value={formData.difficulty} onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecteer moeilijkheidsgraad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Gemakkelijk">Gemakkelijk</SelectItem>
-                      <SelectItem value="Matig">Matig</SelectItem>
-                      <SelectItem value="Moeilijk">Moeilijk</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="muddy"
-                    checked={formData.muddy}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, muddy: checked as boolean }))}
-                  />
-                  <Label htmlFor="muddy">Modderig pad</Label>
-                </div>
-
-                <div>
-                  <Label>Gehuchten</Label>
-                  {formData.gehuchten.map((gehucht, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <Input
-                        value={gehucht}
-                        onChange={(e) => updateGehucht(index, e.target.value)}
-                        placeholder="Gehucht naam"
-                      />
-                      {formData.gehuchten.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeGehucht(index)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addGehucht}
-                    className="mt-2"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Gehucht toevoegen
+              <div className="flex items-center justify-between mb-4">
+                <Link href={`/route/${id}`}>
+                  <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Terug naar route
                   </Button>
-                </div>
-
-                <div>
-                  <Label>Hoogtepunten</Label>
-                  {formData.highlights.map((highlight, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <Input
-                        value={highlight}
-                        onChange={(e) => updateHighlight(index, e.target.value)}
-                        placeholder="Hoogtepunt beschrijving"
-                      />
-                      {formData.highlights.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeHighlight(index)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addHighlight}
-                    className="mt-2"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Hoogtepunt toevoegen
-                  </Button>
-                </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full bg-sage hover:bg-sage-light text-white"
-                  disabled={loading}
-                >
-                  {loading ? 'Bijwerken...' : 'Route Bijwerken'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Map */}
-          <Card className="bg-white border-sage-light">
-            <CardHeader>
-              <CardTitle className="text-sage-dark">Route Kaart</CardTitle>
-              <p className="text-sm text-sage">Klik op de kaart om punten toe te voegen of te verplaatsen</p>
+                </Link>
+                <CardTitle className="text-sage-dark text-2xl">Route Bewerken</CardTitle>
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="h-[600px]">
-                <RouteMap 
-                  coordinates={coordinates}
-                  onCoordinatesChange={setCoordinates}
-                  editable={true}
-                  routeName={formData.name || 'Route bewerken'}
-                  className="h-full w-full rounded-b-lg"
+            <CardContent className="flex-1 flex flex-col space-y-6">
+              <div>
+                <Label htmlFor="name" className="text-sage-dark">Naam</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
                 />
               </div>
+              <div>
+                <Label htmlFor="description" className="text-sage-dark">Beschrijving</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={5}
+                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
+                />
+              </div>
+              <div>
+                <Label htmlFor="distance" className="text-sage-dark">Afstand (km)</Label>
+                <Input
+                  id="distance"
+                  type="number"
+                  value={distance.toFixed(2)}
+                  readOnly
+                  className="mt-1 border-beige bg-gray-50 text-sage-dark"
+                />
+              </div>
+              <div className="flex-1 flex items-end justify-end">
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !name || coordinates.length < 2}
+                  className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base"
+                >
+                  {saving ? 'Opslaan...' : 'Route Opslaan'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-1">
+          <Card className="bg-white shadow-lg border-2 border-beige h-full">
+            <CardHeader>
+              <CardTitle className="text-sage-dark text-2xl">Kaart Bewerken</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[500px] w-full">
+              <MapContainer
+                center={mapCenter}
+                zoom={13}
+                scrollWheelZoom={true}
+                className="h-full w-full rounded-lg shadow-inner"
+                whenCreated={map => {
+                  map.on('click', handleMapClick);
+                }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {polylinePath.length > 0 && (
+                  <>
+                    <Polyline positions={polylinePath} color="#6B8E23" weight={5} />
+                    {polylinePath.map((pos, index) => (
+                      <Marker key={index} position={pos} />
+                    ))}
+                  </>
+                )}
+                <MapUpdater center={mapCenter} zoom={13} polyline={polylinePath} />
+              </MapContainer>
+              <p className="text-sage text-sm mt-4">Klik op de kaart om punten toe te voegen. De afstand wordt automatisch berekend.</p>
+              <Button
+                onClick={() => {
+                  setCoordinates([]);
+                  setDistance(0);
+                }}
+                variant="destructive"
+                className="mt-4"
+              >
+                Wis alle punten
+              </Button>
             </CardContent>
           </Card>
         </div>
