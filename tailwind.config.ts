@@ -1,14 +1,8 @@
 import type { Config } from "tailwindcss"
 
-const config: Config = {
+const config = {
   darkMode: ["class"],
-  content: [
-    "./pages/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}",
-  ],
+  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}", "*.{js,ts,jsx,tsx,mdx}"],
   prefix: "",
   theme: {
     container: {
@@ -19,20 +13,7 @@ const config: Config = {
       },
     },
     extend: {
-      fontFamily: {
-        sans: ["Georgia", "Times New Roman", "serif"],
-        serif: ["Georgia", "Times New Roman", "serif"],
-      },
       colors: {
-        // Custom color palette based on #82AB7D
-        cream: "#EAE7DC",
-        beige: "#D8C3A5",
-        sage: "#6B8F66", // Darker version for better text readability
-        "sage-light": "#82AB7D", // Original color
-        "sage-lighter": "#9BC196", // Lighter for hover states
-        "sage-lightest": "#B8D4B3", // Very light for backgrounds
-        "sage-dark": "#5A7A55", // Even darker for high contrast text
-
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -66,6 +47,13 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Custom colors
+        'sage-dark': 'var(--color-sage-dark)',
+        'sage': 'var(--color-sage)',
+        'sage-light': 'var(--color-sage-light)',
+        'sage-lighter': 'var(--color-sage-lighter)',
+        'cream': 'var(--color-cream)',
+        'beige': 'var(--color-beige)',
       },
       borderRadius: {
         lg: "var(--radius)",

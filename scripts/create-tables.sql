@@ -1,79 +1,81 @@
--- Create routes table
 CREATE TABLE IF NOT EXISTS routes (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  gehuchten TEXT[] NOT NULL DEFAULT '{}',
-  distance DECIMAL(5,2) NOT NULL,
-  muddy BOOLEAN NOT NULL DEFAULT false,
-  description TEXT NOT NULL,
-  coordinates JSONB NOT NULL DEFAULT '[]',
-  difficulty TEXT,
-  duration TEXT,
-  highlights TEXT[] NOT NULL DEFAULT '{}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create users table (for future authentication)
-CREATE TABLE IF NOT EXISTS users (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  description TEXT,
+  distance NUMERIC,
+  gehuchten TEXT[],
+  geojson JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert demo user
-INSERT INTO users (username, password_hash) 
-VALUES ('admin', '$2b$10$rQZ9QmZ9QmZ9QmZ9QmZ9QO') -- This would be a proper hash in production
-ON CONFLICT (username) DO NOTHING;
+-- Enable Row Level Security (RLS)
+ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 
--- Insert demo routes with proper UUIDs
-INSERT INTO routes (id, name, gehuchten, distance, muddy, description, coordinates, difficulty, duration, highlights) VALUES
-(
-  gen_random_uuid(),
-  'Dendervallei Wandeling',
-  ARRAY['Centrum', 'Bosstraat', 'Molenveld'],
-  5.2,
-  true,
-  'Een prachtige wandeling langs de Dender met zicht op historische molens en natuurgebieden. De route voert je door het hart van Nieuwerkerken en biedt adembenemende uitzichten op de vallei.',
-  '[[50.9167, 4.0333], [50.92, 4.04], [50.915, 4.045], [50.9167, 4.0333]]'::jsonb,
-  'Gemakkelijk',
-  '1u 15min',
-  ARRAY['Historische watermolen', 'Dendervallei uitzicht', 'Oude kerk van Nieuwerkerken']
-),
-(
-  gen_random_uuid(),
-  'Bospaden Route',
-  ARRAY['Nieuwbos', 'Kapelleberg'],
-  3.8,
-  false,
-  'Een rustige boswandeling perfect voor families. Deze route neemt je mee door dichte bossen en open velden met veel mogelijkheden om wilde dieren te spotten.',
-  '[[50.91, 4.03], [50.913, 4.035], [50.908, 4.038], [50.91, 4.03]]'::jsonb,
-  'Gemakkelijk',
-  '50min',
-  ARRAY['Eeuwenoude eikenbomen', 'Vogelkijkhut', 'Picknickplaats']
-),
-(
-  gen_random_uuid(),
-  'Heuvelland Tocht',
-  ARRAY['Hoogstraat', 'Bergveld', 'Panorama'],
-  8.1,
-  true,
-  'Een uitdagende wandeling voor ervaren wandelaars. Deze route biedt spectaculaire panoramische uitzichten over de hele regio en voert langs verschillende historische bezienswaardigheden.',
-  '[[50.92, 4.025], [50.925, 4.03], [50.928, 4.035], [50.92, 4.04], [50.92, 4.025]]'::jsonb,
-  'Moeilijk',
-  '2u 30min',
-  ARRAY['Hoogste punt van Nieuwerkerken', 'Kasteel ruïne', 'Panoramisch uitzicht', 'Historische kapel']
+-- Policy for authenticated users to read all routes
+CREATE POLICY "Allow authenticated users to read all routes"
+ON routes FOR SELECT
+TO authenticated
+USING (true);
+
+-- Policy for authenticated users to insert their own routes
+CREATE POLICY "Allow authenticated users to insert their own routes"
+ON routes FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = (SELECT id FROM auth.users WHERE auth.uid() = id));
+
+-- Policy for authenticated users to update their own routes
+CREATE POLICY "Allow authenticated users to update their own routes"
+ON routes FOR UPDATE
+TO authenticated
+USING (auth.uid() = (SELECT id FROM auth.users WHERE auth.uid() = id));
+
+-- Policy for authenticated users to delete their own routes
+CREATE POLICY "Allow authenticated users to delete their own routes"
+ON routes FOR DELETE
+TO authenticated
+USING (auth.uid() = (SELECT id FROM auth.users WHERE auth.uid() = id));
+
+-- Policy for public users to read all routes (if you want public access)
+CREATE POLICY "Allow public users to read all routes"
+ON routes FOR SELECT
+TO public
+USING (true);
+
+-- Create a table for user profiles (optional, but good for user management)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  username TEXT UNIQUE,
+  avatar_url TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create updated_at trigger
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- Enable RLS for profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Policy for users to read their own profile
+CREATE POLICY "Users can view their own profile"
+ON profiles FOR SELECT
+TO authenticated
+USING (auth.uid() = id);
+
+-- Policy for users to update their own profile
+CREATE POLICY "Users can update their own profile"
+ON profiles FOR UPDATE
+TO authenticated
+USING (auth.uid() = id);
+
+-- Function to create a new profile when a new user signs up
+CREATE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+  INSERT INTO public.profiles (id, username)
+  VALUES (NEW.id, NEW.email); -- Or a default username, or prompt for it later
+  RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE TRIGGER update_routes_updated_at BEFORE UPDATE ON routes
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Trigger to call the function after a new user is created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

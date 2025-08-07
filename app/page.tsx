@@ -1,42 +1,46 @@
-import { createClient } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Suspense } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import Header from '@/components/header'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useState, useEffect } from 'react'
 import { ArrowRight, MapPin, Ruler } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
-export default function IndexPage() {
-  const [routes, setRoutes] = useState<any[]>([])
-  const [sortBy, setSortBy] = useState('name-asc')
+export const revalidate = 0
 
-  useEffect(() => {
-    const fetchRoutes = async () => {
-      const supabase = createClient()
-      const { data, error } = await supabase.from('routes').select('*')
-      if (error) {
-        console.error('Error fetching routes:', error)
-      } else {
-        setRoutes(data || [])
-      }
-    }
+interface Route {
+  id: string
+  name: string
+  description: string | null
+  distance: number | null
+  gehuchten: string[] | null
+  created_at: string
+}
 
-    fetchRoutes()
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined }
+}) {
+  const supabase = createClient()
+  const { data: routes, error } = await supabase.from('routes').select('*')
 
-    // Refresh data when window gains focus
-    window.addEventListener('focus', fetchRoutes)
-    return () => window.removeEventListener('focus', fetchRoutes)
-  }, [])
+  if (error) {
+    console.error('Error fetching routes:', error)
+    return <div className="text-red-500 text-center py-10">Fout bij het laden van routes.</div>
+  }
 
-  const sortedRoutes = [...routes].sort((a, b) => {
-    if (sortBy === 'name-asc') {
+  const sort = searchParams.sort as string || 'name-asc'
+
+  const sortedRoutes = routes.sort((a: Route, b: Route) => {
+    if (sort === 'name-asc') {
       return a.name.localeCompare(b.name)
-    } else if (sortBy === 'name-desc') {
+    } else if (sort === 'name-desc') {
       return b.name.localeCompare(a.name)
-    } else if (sortBy === 'distance-asc') {
+    } else if (sort === 'distance-asc') {
       return (a.distance || 0) - (b.distance || 0)
-    } else if (sortBy === 'distance-desc') {
+    } else if (sort === 'distance-desc') {
       return (b.distance || 0) - (a.distance || 0)
     }
     return 0
@@ -45,88 +49,91 @@ export default function IndexPage() {
   return (
     <div className="min-h-screen bg-cream">
       <Header />
+
       <main className="container mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-sage-dark mb-6 tracking-wide leading-tight title-font">
-            Welkom in Nieuwerkerken
-            <br />
-            <span className="bg-gradient-to-r from-sage-light to-sage-lighter bg-clip-text text-transparent">
-              Wandel door het hart van Vlaanderen
-            </span>
+        {/* Hero Section */}
+        <section className="text-center mb-16">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-sage-dark mb-6 tracking-wide leading-tight title-font">
+            Nieuwerkerken Wandelt
           </h1>
-          <p className="text-sage text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed font-light">
+          <p className="text-lg sm:text-xl text-sage mb-8 max-w-3xl mx-auto font-light">
             Ontdek het dorp, zijn gehuchten en de groene wandelpaden en steegjes.
           </p>
-        </div>
 
-        {/* New Section with Buttons */}
-        <section className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
-          <Link href="/over-nieuwerkerken" passHref>
-            <Button className="w-full sm:w-auto bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-300">
-              Over Nieuwerkerken en de gehuchten
-            </Button>
-          </Link>
-          <Link href="/over-wandelen" passHref>
-            <Button className="w-full sm:w-auto bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-300">
-              Over wandelen in Nieuwerkerken
-            </Button>
-          </Link>
+          {/* New Buttons Section */}
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+            <Link href="/over-nieuwerkerken" passHref>
+              <Button className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base">
+                Over Nieuwerkerken en de gehuchten
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+            <Link href="/over-wandelen" passHref>
+              <Button className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base">
+                Over wandelen in Nieuwerkerken
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+
+          {/* Sort Section */}
+          <div className="flex justify-end mb-8">
+            <Select
+              onValueChange={(value) => {
+                const params = new URLSearchParams(window.location.search)
+                params.set('sort', value)
+                window.history.pushState(null, '', `?${params.toString()}`)
+              }}
+              defaultValue={sort}
+            >
+              <SelectTrigger className="w-[180px] bg-white border-beige text-sage-dark">
+                <SelectValue placeholder="Sorteer op" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-beige text-sage-dark">
+                <SelectItem value="name-asc">Alfabetisch: A naar Z</SelectItem>
+                <SelectItem value="name-desc">Alfabetisch: Z naar A</SelectItem>
+                <SelectItem value="distance-asc">Afstand: klein naar groot</SelectItem>
+                <SelectItem value="distance-desc">Afstand: groot naar klein</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </section>
 
-        <div className="flex justify-end mb-6">
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px] border-sage-light text-sage">
-              <SelectValue placeholder="Sorteer op" />
-            </SelectTrigger>
-            <SelectContent className="bg-white text-sage">
-              <SelectItem value="name-asc">Alfabetisch: A naar Z</SelectItem>
-              <SelectItem value="name-desc">Alfabetisch: Z naar A</SelectItem>
-              <SelectItem value="distance-asc">Afstand: klein naar groot</SelectItem>
-              <SelectItem value="distance-desc">Afstand: groot naar klein</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Routes Grid */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {sortedRoutes.map((route) => (
-            <Card key={route.id} className="border-2 border-beige bg-white shadow-sm hover:shadow-lg transition-all duration-300">
-              <CardHeader className="relative">
-                <div className="absolute top-4 left-4 bg-sage-light text-white text-xs font-semibold px-3 py-1 rounded-full z-10">
-                  {route.difficulty || 'Onbekend'}
-                </div>
-                <img
-                  src={route.image_url || '/placeholder.svg?height=200&width=300&query=scenic-route'}
-                  alt={route.name}
-                  width={400}
-                  height={200}
-                  className="w-full h-48 object-cover rounded-t-lg"
-                />
-              </CardHeader>
-              <CardContent className="p-6">
-                <CardTitle className="text-sage-dark text-xl font-bold mb-2 title-font">
-                  {route.name}
-                </CardTitle>
-                <CardDescription className="text-sage text-sm mb-4 font-light">
-                  {route.description}
-                </CardDescription>
-                <div className="flex items-center text-sage text-sm mb-2">
-                  <Ruler className="w-4 h-4 mr-2 text-sage-light" />
-                  <span>{route.distance ? `${route.distance.toFixed(1)} km` : 'Onbekend'}</span>
-                </div>
-                <div className="flex items-center text-sage text-sm mb-4">
-                  <MapPin className="w-4 h-4 mr-2 text-sage-light" />
-                  <span>{route.gehuchten?.join(', ') || 'Nieuwerkerken'}</span>
-                </div>
-                <Link href={`/route/${route.id}`} passHref>
-                  <Button className="w-full bg-sage hover:bg-sage-dark text-white font-semibold py-2 rounded-lg transition-colors duration-300">
-                    Bekijk Route
-                    <ArrowRight className="w-4 h-4 ml-2" />
+            <Link href={`/route/${route.id}`} key={route.id} passHref>
+              <Card className="border-2 border-beige bg-white shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer h-full flex flex-col">
+                <CardHeader>
+                  <CardTitle className="text-sage-dark text-xl title-font">{route.name}</CardTitle>
+                  {route.description && (
+                    <CardDescription className="text-sage text-sm mt-1 font-light">
+                      {route.description}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <div className="flex items-center text-sage text-sm mb-2">
+                    <Ruler className="w-4 h-4 mr-2 text-sage-light" />
+                    <span>{route.distance ? `${route.distance.toFixed(2)} km` : 'N/A km'}</span>
+                  </div>
+                  {route.gehuchten && route.gehuchten.length > 0 && (
+                    <div className="flex items-center text-sage text-sm">
+                      <MapPin className="w-4 h-4 mr-2 text-sage-light" />
+                      <span>{route.gehuchten.join(', ')}</span>
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                  <Button variant="ghost" className="text-sage hover:text-sage-dark">
+                    Bekijk route
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                </Link>
-              </CardContent>
-            </Card>
+                </CardFooter>
+              </Card>
+            </Link>
           ))}
-        </div>
+        </section>
       </main>
     </div>
   )

@@ -1,11 +1,51 @@
 "use client"
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createBrowserClient } from '@supabase/supabase-js'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+export function createClient() {
+  const cookieStore = cookies()
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `cookies().set()` method can only be called from a Server Component or Server Action.
+            // This error is typically fixed by calling `cookies().set()` inside a Server Action.
+            // For more information, see https://nextjs.org/docs/app/api-reference/functions/cookies#cookiessetname-value-options
+            console.warn('Cookie set failed:', error);
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `cookies().set()` method can only be called from a Server Component or Server Action.
+            // This error is typically fixed by calling `cookies().set()` inside a Server Action.
+            // For more information, see https://nextjs.org/docs/app/api-reference/functions/cookies#cookiessetname-value-options
+            console.warn('Cookie remove failed:', error);
+          }
+        },
+      },
+    }
+  )
+}
+
+export function createBrowserSupabaseClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 export interface Route {
   id: string
@@ -25,6 +65,7 @@ export interface Route {
 // Routes functions
 export async function getRoutes(): Promise<Route[]> {
   try {
+    const supabase = createBrowserSupabaseClient()
     const { data, error } = await supabase
       .from('routes')
       .select('*')
@@ -44,6 +85,7 @@ export async function getRoutes(): Promise<Route[]> {
 
 export async function getRouteById(id: string): Promise<Route | null> {
   try {
+    const supabase = createBrowserSupabaseClient()
     const { data, error } = await supabase
       .from('routes')
       .select('*')
@@ -64,6 +106,7 @@ export async function getRouteById(id: string): Promise<Route | null> {
 
 export async function addRoute(route: Omit<Route, 'id' | 'created_at' | 'updated_at'>): Promise<Route | null> {
   try {
+    const supabase = createBrowserSupabaseClient()
     const { data, error } = await supabase
       .from('routes')
       .insert([route])
@@ -84,6 +127,7 @@ export async function addRoute(route: Omit<Route, 'id' | 'created_at' | 'updated
 
 export async function updateRoute(route: Route): Promise<Route | null> {
   try {
+    const supabase = createBrowserSupabaseClient()
     const { data, error } = await supabase
       .from('routes')
       .update({
@@ -115,6 +159,7 @@ export async function updateRoute(route: Route): Promise<Route | null> {
 
 export async function deleteRoute(id: string): Promise<boolean> {
   try {
+    const supabase = createBrowserSupabaseClient()
     const { error } = await supabase
       .from('routes')
       .delete()

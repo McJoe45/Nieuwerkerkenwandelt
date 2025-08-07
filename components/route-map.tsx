@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { ExternalLink, Edit } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { isAuthenticated, getRouteById } from "@/lib/supabase"
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 declare global {
   interface Window {
@@ -11,17 +13,25 @@ declare global {
   }
 }
 
+// Fix for default icon issues with Webpack
+delete (L.Icon.Default.prototype as any)._get='_getIconUrl';
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
+
 interface RouteMapProps {
-  coordinates: [number, number][]
+  geojson: any;
   routeName?: string
   routeId?: string
   editable?: boolean
-  onCoordinatesChange?: (coords: [number, number][]) => void
+  onCoordinatesChange?: (coords: any) => void
   className?: string
 }
 
 export default function RouteMap({
-  coordinates: initialCoordinates,
+  geojson,
   routeName,
   routeId,
   editable = false,
@@ -29,187 +39,47 @@ export default function RouteMap({
   className = "h-96 w-full rounded-lg",
 }: RouteMapProps) {
   const [isClient, setIsClient] = useState(false)
-  const [coordinates, setCoordinates] = useState(initialCoordinates)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [scriptsLoaded, setScriptsLoaded] = useState(false)
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
+  const mapInstance = useRef<L.Map | null>(null)
+  const routeLayer = useRef<L.GeoJSON | null>(null)
 
   useEffect(() => {
     setIsClient(true)
     setIsLoggedIn(isAuthenticated())
   }, [])
 
-  // Load Leaflet scripts
   useEffect(() => {
-    const loadScripts = async () => {
-      if (typeof window !== 'undefined' && !window.L) {
-        const leafletCSS = document.createElement('link')
-        leafletCSS.rel = 'stylesheet'
-        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-        document.head.appendChild(leafletCSS)
+    if (mapRef.current && !mapInstance.current) {
+      mapInstance.current = L.map(mapRef.current).setView([50.93, 3.98], 13) // Centered around Nieuwerkerken
 
-        const leafletJS = document.createElement('script')
-        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-        leafletJS.onload = () => {
-          setScriptsLoaded(true)
-        }
-        document.body.appendChild(leafletJS)
-      } else if (window.L) {
-        setScriptsLoaded(true)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(mapInstance.current)
+    }
+
+    if (mapInstance.current && geojson) {
+      if (routeLayer.current) {
+        mapInstance.current.removeLayer(routeLayer.current)
       }
-    }
-
-    loadScripts()
-  }, [])
-
-  // Initialize map when scripts are loaded
-  useEffect(() => {
-    if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
-
-    const L = window.L
-    const map = L.map(mapRef.current).setView([50.9167, 4.0333], 13)
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map)
-
-    mapInstanceRef.current = map
-
-    // Display initial coordinates
-    if (coordinates && coordinates.length > 0) {
-      displayRoute(coordinates)
-    }
-
-  }, [scriptsLoaded])
-
-  // Update coordinates when props change
-  useEffect(() => {
-    setCoordinates(initialCoordinates)
-    if (mapInstanceRef.current && scriptsLoaded) {
-      displayRoute(initialCoordinates)
-    }
-  }, [initialCoordinates, scriptsLoaded])
-
-  // Listen for route updates from editor window
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'ROUTE_UPDATED' && event.data.routeId === routeId) {
-        console.log('Received route update message:', event.data)
-        const newCoordinates = event.data.coordinates
-        setCoordinates(newCoordinates)
-        if (mapInstanceRef.current && scriptsLoaded) {
-          displayRoute(newCoordinates)
+      routeLayer.current = L.geoJSON(geojson, {
+        style: {
+          color: '#6B8E23', // Sage green
+          weight: 5,
+          opacity: 0.7
         }
-      }
-    }
+      }).addTo(mapInstance.current)
 
-    const handleStorageChange = async (event: StorageEvent) => {
-      if (event.key === 'routes' && routeId) {
-        console.log('Storage changed, refreshing route data')
-        // Get fresh route data from storage
-        const updatedRoute = await getRouteById(routeId)
-        if (updatedRoute && updatedRoute.coordinates) {
-          const newCoordinates = updatedRoute.coordinates
-          setCoordinates(newCoordinates)
-          if (mapInstanceRef.current && scriptsLoaded) {
-            displayRoute(newCoordinates)
-          }
-        }
-      }
+      mapInstance.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 50] })
     }
-
-    const handleFocus = async () => {
-      // When window regains focus, check for route updates
-      if (routeId) {
-        const updatedRoute = await getRouteById(routeId)
-        if (updatedRoute && updatedRoute.coordinates) {
-          const currentCoords = JSON.stringify(coordinates)
-          const newCoords = JSON.stringify(updatedRoute.coordinates)
-          if (currentCoords !== newCoords) {
-            console.log('Route updated while window was not focused')
-            const newCoordinates = updatedRoute.coordinates
-            setCoordinates(newCoordinates)
-            if (mapInstanceRef.current && scriptsLoaded) {
-              displayRoute(newCoordinates)
-            }
-          }
-        }
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-    window.addEventListener('storage', handleStorageChange)
-    window.addEventListener('focus', handleFocus)
 
     return () => {
-      window.removeEventListener('message', handleMessage)
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [routeId, coordinates, scriptsLoaded])
-
-  const displayRoute = (coords: [number, number][]) => {
-    if (!mapInstanceRef.current || !window.L || !coords || coords.length === 0) return
-
-    const L = window.L
-
-    // Clear existing layers
-    mapInstanceRef.current.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-        mapInstanceRef.current.removeLayer(layer)
+      if (mapInstance.current) {
+        mapInstance.current.remove()
+        mapInstance.current = null
       }
-    })
-
-    if (coords.length === 1) {
-      // Single point
-      mapInstanceRef.current.setView([coords[0][0], coords[0][1]], 16)
-      L.marker([coords[0][0], coords[0][1]], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-          iconSize: [25, 25],
-          iconAnchor: [12, 12]
-        })
-      }).addTo(mapInstanceRef.current)
-      return
     }
-
-    // Multiple points - draw the route
-    const polyline = L.polyline(coords, {
-      color: 'red',
-      weight: 4,
-      opacity: 0.8
-    }).addTo(mapInstanceRef.current)
-
-    // Add start marker
-    L.marker([coords[0][0], coords[0][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: green; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-        iconSize: [25, 25],
-        iconAnchor: [12, 12]
-      })
-    }).addTo(mapInstanceRef.current)
-
-    // Add end marker
-    L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: red; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">EINDE</div>',
-        iconSize: [25, 25],
-        iconAnchor: [12, 12]
-      })
-    }).addTo(mapInstanceRef.current)
-
-    // Fit map to route bounds with padding
-    mapInstanceRef.current.fitBounds(polyline.getBounds(), { 
-      padding: [20, 20],
-      maxZoom: 16
-    })
-
-    console.log('Route displayed:', coords.length, 'points')
-  }
+  }, [geojson])
 
   const openFullscreenMap = () => {
     if (!routeId) return
@@ -227,14 +97,6 @@ export default function RouteMap({
     return (
       <div className={`${className} bg-gray-100 flex items-center justify-center`}>
         <p className="text-gray-500">Kaart wordt geladen...</p>
-      </div>
-    )
-  }
-
-  if (!scriptsLoaded) {
-    return (
-      <div className={`${className} bg-gray-100 flex items-center justify-center`}>
-        <p className="text-gray-500">Kaart scripts worden geladen...</p>
       </div>
     )
   }

@@ -1,4 +1,5 @@
 "use client"
+import { createClient } from './supabase'
 
 interface Route {
   id: string
@@ -154,4 +155,10 @@ export function deleteRoute(id: string): void {
     const filteredRoutes = routes.filter((route) => route.id !== id)
     localStorage.setItem("routes", JSON.stringify(filteredRoutes))
   }
+}
+
+export async function getUser() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
 }

@@ -1,554 +1,269 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useRef } from "react"
-import { useParams } from "next/navigation"
-import { Save, Trash2, MapPin, Play, Square } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getRouteById, updateRoute } from "@/lib/supabase"
-import type { Route } from "@/lib/supabase"
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import 'leaflet-draw/dist/leaflet.draw.css'
+import 'leaflet-draw'
+import Header from '@/components/header'
 
-declare global {
-  interface Window {
-    L: any;
-  }
+// Fix for default icon issues with Webpack
+delete (L.Icon.Default.prototype as any)._get='_getIconUrl';
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
+
+interface RouteData {
+  id?: string;
+  name: string;
+  description: string;
+  distance: number;
+  gehuchten: string[];
+  geojson: any;
 }
 
-export default function RouteEditorPage() {
-  const params = useParams()
-  const [route, setRoute] = useState<Route | null>(null)
-  const [waypoints, setWaypoints] = useState<[number, number][]>([])
-  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([])
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [totalDistance, setTotalDistance] = useState(0)
+export default function RouteEditorPage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const { id } = params
+  const isNewRoute = id === 'new'
+  const [routeData, setRouteData] = useState<RouteData>({
+    name: '',
+    description: '',
+    distance: 0,
+    gehuchten: [],
+    geojson: null,
+  })
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const routingControlRef = useRef<any>(null)
-  const [scriptsLoaded, setScriptsLoaded] = useState(false)
+  const mapInstance = useRef<L.Map | null>(null)
+  const editableLayers = useRef<L.FeatureGroup | null>(null)
+  const drawControl = useRef<L.Control.Draw | null>(null)
+  const supabase = createClient()
 
-  useEffect(() => {
-    const loadRoute = async () => {
-      const routeData = await getRouteById(params.id as string)
-      if (routeData) {
-        setRoute(routeData)
-        if (routeData.coordinates && routeData.coordinates.length > 0) {
-          setRouteCoordinates(routeData.coordinates)
-          const coords = routeData.coordinates
-          if (coords.length >= 2) {
-            setWaypoints([coords[0], coords[coords.length - 1]])
-          }
-        }
-      }
-    }
-    loadRoute()
-  }, [params.id])
-
-  // Load Leaflet and Routing Machine scripts
-  useEffect(() => {
-    const loadScripts = async () => {
-      if (typeof window !== 'undefined' && !window.L) {
-        const leafletCSS = document.createElement('link')
-        leafletCSS.rel = 'stylesheet'
-        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-        document.head.appendChild(leafletCSS)
-
-        const leafletJS = document.createElement('script')
-        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-        leafletJS.onload = () => {
-          const routingCSS = document.createElement('link')
-          routingCSS.rel = 'stylesheet'
-          routingCSS.href = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css'
-          document.head.appendChild(routingCSS)
-
-          const routingJS = document.createElement('script')
-          routingJS.src = 'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js'
-          routingJS.onload = () => {
-            setScriptsLoaded(true)
-          }
-          document.body.appendChild(routingJS)
-        }
-        document.body.appendChild(leafletJS)
-      } else if (window.L) {
-        setScriptsLoaded(true)
-      }
+  const calculateDistance = useCallback((geojson: any): number => {
+    if (!geojson || !geojson.coordinates || geojson.coordinates.length < 2) {
+      return 0
     }
 
-    loadScripts()
+    let totalDistance = 0
+    for (let i = 0; i < geojson.coordinates.length - 1; i++) {
+      const p1 = L.latLng(geojson.coordinates[i][1], geojson.coordinates[i][0])
+      const p2 = L.latLng(geojson.coordinates[i + 1][1], geojson.coordinates[i + 1][0])
+      totalDistance += p1.distanceTo(p2)
+    }
+    return totalDistance / 1000 // Convert meters to kilometers
   }, [])
 
-  // Initialize map when scripts are loaded
   useEffect(() => {
-    if (!scriptsLoaded || !mapRef.current || mapInstanceRef.current) return
+    if (mapRef.current && !mapInstance.current) {
+      mapInstance.current = L.map(mapRef.current).setView([50.93, 3.98], 13) // Centered around Nieuwerkerken
 
-    const L = window.L
-    const map = L.map(mapRef.current).setView([50.9167, 4.0333], 15)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(mapInstance.current)
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map)
+      editableLayers.current = new L.FeatureGroup().addTo(mapInstance.current)
 
-    mapInstanceRef.current = map
-
-    if (routeCoordinates.length > 0) {
-      displayExistingRoute(routeCoordinates)
-    } else if (waypoints.length > 0) {
-      updateRouteOnMap(waypoints)
-    }
-
-  }, [scriptsLoaded, routeCoordinates])
-
-  const displayExistingRoute = (coords: [number, number][]) => {
-    if (!mapInstanceRef.current || !window.L || coords.length === 0) return
-
-    const L = window.L
-
-    mapInstanceRef.current.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-        mapInstanceRef.current.removeLayer(layer)
-      }
-    })
-
-    const polyline = L.polyline(coords, {
-      color: 'red',
-      weight: 4,
-      opacity: 0.8
-    }).addTo(mapInstanceRef.current)
-
-    if (coords.length >= 2) {
-      L.marker([coords[0][0], coords[0][1]], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        })
-      }).addTo(mapInstanceRef.current)
-
-      L.marker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: '<div style="background-color: red; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">EINDE</div>',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        })
-      }).addTo(mapInstanceRef.current)
-
-      mapInstanceRef.current.fitBounds(polyline.getBounds(), { padding: [20, 20] })
-    }
-
-    let distance = 0
-    for (let i = 1; i < coords.length; i++) {
-      const lat1 = coords[i - 1][0]
-      const lon1 = coords[i - 1][1]
-      const lat2 = coords[i][0]
-      const lon2 = coords[i][1]
-      
-      const R = 6371
-      const dLat = (lat2 - lat1) * Math.PI / 180
-      const dLon = (lon2 - lon1) * Math.PI / 180
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2)
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-      distance += R * c
-    }
-    setTotalDistance(Math.round(distance * 10) / 10)
-  }
-
-  // Calculate distance between two points in meters
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371000 // Earth's radius in meters
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-    return R * c
-  }
-
-  const updateRouteOnMap = (waypointList: [number, number][]) => {
-  if (!mapInstanceRef.current || !window.L) return
-
-  const L = window.L
-
-  if (routingControlRef.current) {
-    mapInstanceRef.current.removeControl(routingControlRef.current)
-  }
-
-  mapInstanceRef.current.eachLayer((layer: any) => {
-    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-      mapInstanceRef.current.removeLayer(layer)
-    }
-  })
-
-  if (waypointList.length >= 2) {
-    console.log('Using direct route for all waypoints')
-    const interpolatedRoute = createInterpolatedRoute(waypointList)
-    
-    const polyline = L.polyline(interpolatedRoute, {
-      color: 'blue',
-      weight: 4,
-      opacity: 0.8
-    }).addTo(mapInstanceRef.current)
-    
-    setRouteCoordinates(interpolatedRoute)
-    
-    // Calculate distance
-    let distance = 0
-    for (let i = 1; i < interpolatedRoute.length; i++) {
-      const lat1 = interpolatedRoute[i - 1][0]
-      const lon1 = interpolatedRoute[i - 1][1]
-      const lat2 = interpolatedRoute[i][0]
-      const lon2 = interpolatedRoute[i][1]
-      
-      const R = 6371
-      const dLat = (lat2 - lat1) * Math.PI / 180
-      const dLon = (lon2 - lon1) * Math.PI / 180
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2)
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-      distance += R * c
-    }
-    setTotalDistance(Math.round(distance * 10) / 10)
-    
-    // Add markers
-    addMarkersToMap(waypointList)
-    
-    // Fit map to route
-    mapInstanceRef.current.fitBounds(polyline.getBounds(), { padding: [20, 20] })
-    
-    console.log('Direct route created with', interpolatedRoute.length, 'points, distance:', Math.round(distance * 10) / 10, 'km')
-  } else if (waypointList.length === 1) {
-    L.marker([waypointList[0][0], waypointList[0][1]], {
-      icon: L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: green; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">START</div>',
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
-      })
-    }).addTo(mapInstanceRef.current)
-  }
-}
-
-  const addMarkersToMap = (waypointList: [number, number][]) => {
-    if (!mapInstanceRef.current || !window.L) return
-    
-    const L = window.L
-    
-    waypointList.forEach((coord, index) => {
-      const isStart = index === 0
-      const isEnd = index === waypointList.length - 1
-      
-      let markerColor = 'blue'
-      let markerText = `${index + 1}`
-      
-      if (isStart) {
-        markerColor = 'green'
-        markerText = 'START'
-      } else if (isEnd) {
-        markerColor = 'red' 
-        markerText = 'EINDE'
-      }
-
-      L.marker([coord[0], coord[1]], {
-        icon: L.divIcon({
-          className: 'custom-marker',
-          html: `<div style="background-color: ${markerColor}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${markerText}</div>`,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        })
-      }).addTo(mapInstanceRef.current)
-    })
-  }
-
-  // Helper function to create a more intelligent interpolated route
-  const createInterpolatedRoute = (waypoints: [number, number][]): [number, number][] => {
-    if (waypoints.length < 2) return waypoints
-    
-    const interpolatedPoints: [number, number][] = []
-    
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const start = waypoints[i]
-      const end = waypoints[i + 1]
-      
-      interpolatedPoints.push(start)
-      
-      // Calculate distance between points
-      const distance = calculateDistance(start[0], start[1], end[0], end[1])
-      
-      // Add intermediate points for longer segments (more than 10m)
-      if (distance > 10) {
-        const steps = Math.max(2, Math.floor(distance / 5)) // Point every 5 meters
-        
-        for (let step = 1; step < steps; step++) {
-          const ratio = step / steps
-          const interpLat = start[0] + (end[0] - start[0]) * ratio
-          const interpLon = start[1] + (end[1] - start[1]) * ratio
-          interpolatedPoints.push([interpLat, interpLon])
-        }
-      }
-    }
-    
-    // Add the final point
-    interpolatedPoints.push(waypoints[waypoints.length - 1])
-    
-    return interpolatedPoints
-  }
-
-  // Handle map clicks when drawing
-  useEffect(() => {
-    if (!mapInstanceRef.current || !isDrawing) return
-
-    const handleMapClick = (e: any) => {
-      const newPoint: [number, number] = [e.latlng.lat, e.latlng.lng]
-      const newWaypoints = [...waypoints, newPoint]
-      setWaypoints(newWaypoints)
-      updateRouteOnMap(newWaypoints)
-    }
-
-    mapInstanceRef.current.on('dblclick', handleMapClick)
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.off('dblclick', handleMapClick)
-      }
-    }
-  }, [isDrawing, waypoints])
-
-  const startDrawing = () => {
-    setIsDrawing(true)
-    setWaypoints([])
-    setRouteCoordinates([])
-    setTotalDistance(0)
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.getContainer().style.cursor = 'crosshair'
-      if (routingControlRef.current) {
-        mapInstanceRef.current.removeControl(routingControlRef.current)
-        routingControlRef.current = null
-      }
-      mapInstanceRef.current.eachLayer((layer: any) => {
-        if (layer instanceof window.L.Marker || layer instanceof window.L.Polyline) {
-          mapInstanceRef.current.removeLayer(layer)
-        }
-      })
-    }
-  }
-
-  const stopDrawing = () => {
-    setIsDrawing(false)
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.getContainer().style.cursor = ''
-    }
-  }
-
-  const removeLastPoint = () => {
-    if (waypoints.length > 0) {
-      const newWaypoints = waypoints.slice(0, -1)
-      setWaypoints(newWaypoints)
-      updateRouteOnMap(newWaypoints)
-    }
-  }
-
-  const clearRoute = () => {
-    if (confirm('Weet je zeker dat je de hele route wilt wissen?')) {
-      setWaypoints([])
-      setRouteCoordinates([])
-      setTotalDistance(0)
-      if (routingControlRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeControl(routingControlRef.current)
-        routingControlRef.current = null
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.eachLayer((layer: any) => {
-          if (layer instanceof window.L.Marker || layer instanceof window.L.Polyline) {
-            mapInstanceRef.current.removeLayer(layer)
+      drawControl.current = new L.Control.Draw({
+        edit: {
+          featureGroup: editableLayers.current,
+          poly: {
+            allowIntersection: false
           }
+        },
+        draw: {
+          polygon: {
+            allowIntersection: false,
+            showArea: true
+          },
+          polyline: {
+            metric: true
+          },
+          circle: false,
+          rectangle: false,
+          marker: false,
+          circlemarker: false
+        }
+      })
+      mapInstance.current.addControl(drawControl.current)
+
+      mapInstance.current.on(L.Draw.Event.CREATED, (e: any) => {
+        const layer = e.layer
+        editableLayers.current?.addLayer(layer)
+        const geojson = layer.toGeoJSON()
+        const distance = calculateDistance(geojson.geometry)
+        setRouteData(prev => ({ ...prev, geojson: geojson.geometry, distance }))
+      })
+
+      mapInstance.current.on(L.Draw.Event.EDITED, (e: any) => {
+        e.layers.each((layer: any) => {
+          const geojson = layer.toGeoJSON()
+          const distance = calculateDistance(geojson.geometry)
+          setRouteData(prev => ({ ...prev, geojson: geojson.geometry, distance }))
         })
-      }
+      })
+
+      mapInstance.current.on(L.Draw.Event.DELETED, () => {
+        setRouteData(prev => ({ ...prev, geojson: null, distance: 0 }))
+      })
     }
+
+    if (!isNewRoute && mapInstance.current && editableLayers.current) {
+      const fetchRoute = async () => {
+        const { data, error } = await supabase.from('routes').select('*').eq('id', id).single()
+        if (error) {
+          console.error('Error fetching route:', error)
+          // Handle error, maybe redirect or show a message
+          return
+        }
+        if (data) {
+          setRouteData({
+            name: data.name,
+            description: data.description || '',
+            distance: data.distance || 0,
+            gehuchten: data.gehuchten || [],
+            geojson: data.geojson,
+          })
+
+          if (data.geojson) {
+            editableLayers.current?.clearLayers()
+            const layer = L.geoJSON(data.geojson)
+            layer.eachLayer((l) => {
+              editableLayers.current?.addLayer(l)
+            })
+            mapInstance.current?.fitBounds(editableLayers.current.getBounds())
+          }
+        }
+      }
+      fetchRoute()
+    }
+  }, [id, isNewRoute, calculateDistance])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setRouteData(prev => ({ ...prev, [name]: value }))
   }
 
-  const saveAndClose = async () => {
-    if (!route || routeCoordinates.length === 0) {
-      alert('Er is geen route om op te slaan!')
+  const handleGehuchtenChange = (value: string) => {
+    setRouteData(prev => ({ ...prev, gehuchten: value ? value.split(',').map(g => g.trim()) : [] }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!routeData.geojson) {
+      alert('Please draw a route on the map.')
       return
     }
-    
-    const updatedRoute = {
-      ...route,
-      coordinates: routeCoordinates,
-      distance: totalDistance
-    }
-    
-    console.log('Saving route to Supabase:', {
-      id: updatedRoute.id,
-      coordinatesCount: updatedRoute.coordinates.length,
-      distance: updatedRoute.distance
-    })
-    
-    // Save to Supabase
-    const result = await updateRoute(updatedRoute)
-    
-    if (result) {
-      // Notify parent window with detailed data
-      if (window.opener) {
-        window.opener.postMessage({
-          type: 'ROUTE_UPDATED',
-          routeId: route.id,
-          coordinates: routeCoordinates,
-          distance: totalDistance,
-          route: result // Use the result from Supabase
-        }, '*')
-      }
-      
-      alert('Route opgeslagen in database!')
-      window.close()
-    } else {
-      alert('Er is een fout opgetreden bij het opslaan van de route.')
-    }
-  }
 
-  if (!route) {
-    return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <p className="text-sage-dark text-xl">Route niet gevonden...</p>
-      </div>
-    )
+    if (isNewRoute) {
+      const { data, error } = await supabase.from('routes').insert([routeData]).select()
+      if (error) {
+        console.error('Error creating route:', error)
+        alert('Fout bij het aanmaken van de route.')
+      } else {
+        alert('Route succesvol aangemaakt!')
+        router.push(`/route/${data[0].id}`)
+      }
+    } else {
+      const { data, error } = await supabase.from('routes').update(routeData).eq('id', id).select()
+      if (error) {
+        console.error('Error updating route:', error)
+        alert('Fout bij het bijwerken van de route.')
+      } else {
+        alert('Route succesvol bijgewerkt!')
+        router.push(`/route/${data[0].id}`)
+      }
+    }
   }
 
   return (
     <div className="min-h-screen bg-cream">
-      <div className="container mx-auto px-4 py-6">
-        <Card className="border-beige bg-white mb-6">
-          <CardHeader>
-            <CardTitle className="text-2xl text-sage-dark flex items-center gap-2 title-font">
-              <MapPin className="w-6 h-6" />
-              Route Editor: {route.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                {!isDrawing ? (
-                  <Button
-                    onClick={startDrawing}
-                    className="bg-sage-light hover:bg-sage-lighter text-white"
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Nieuwe Route Tekenen
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={stopDrawing}
-                    className="bg-orange-500 hover:bg-orange-600 text-white"
-                  >
-                    <Square className="w-4 h-4 mr-2" />
-                    Stop Tekenen
-                  </Button>
-                )}
-                
-                <Button
-                  onClick={removeLastPoint}
-                  variant="outline"
-                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                  disabled={waypoints.length === 0}
-                >
-                  Laatste Punt Wissen
-                </Button>
-                
-                <Button
-                  onClick={clearRoute}
-                  variant="outline"
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                  disabled={waypoints.length === 0 && routeCoordinates.length === 0}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Alles Wissen
-                </Button>
+      <Header />
+      <main className="container mx-auto px-6 py-12">
+        <h1 className="text-3xl font-bold text-sage-dark mb-8">
+          {isNewRoute ? 'Nieuwe Route Maken' : `Route Bewerken: ${routeData.name}`}
+        </h1>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card className="border-2 border-beige bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sage-dark">Route Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="name" className="text-sage">Naam</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={routeData.name}
+                  onChange={handleChange}
+                  required
+                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
+                />
               </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="text-sage-dark text-sm">
-                  <span className="font-medium">Afstand: {totalDistance} km</span>
-                  <span className="ml-4">Punten: {waypoints.length}</span>
-                </div>
-                <Button
-                  onClick={saveAndClose}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  disabled={routeCoordinates.length === 0}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Opslaan & Sluiten
-                </Button>
+              <div>
+                <Label htmlFor="description" className="text-sage">Beschrijving</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={routeData.description}
+                  onChange={handleChange}
+                  rows={4}
+                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
+                />
               </div>
-            </div>
-            
-            {isDrawing && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
-                <p className="font-medium mb-2">🎯 Teken Modus Actief</p>
-                <p><strong>Dubbelklik</strong> op de kaart om punten toe te voegen.</p>
-                <p><strong>Blauwe lijn</strong>: Directe route tussen alle punten</p>
-                <p>Plaats punten strategisch om de gewenste route te maken.</p>
+              <div>
+                <Label htmlFor="distance" className="text-sage">Afstand (km)</Label>
+                <Input
+                  id="distance"
+                  name="distance"
+                  type="number"
+                  value={routeData.distance.toFixed(2)}
+                  readOnly
+                  className="border-beige text-sage-dark bg-gray-50 cursor-not-allowed"
+                />
               </div>
-            )}
-
-            {!scriptsLoaded && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 mb-4">
-                <p>Kaart wordt geladen...</p>
+              <div>
+                <Label htmlFor="gehuchten" className="text-sage">Gehuchten (komma-gescheiden)</Label>
+                <Input
+                  id="gehuchten"
+                  name="gehuchten"
+                  value={routeData.gehuchten.join(', ')}
+                  onChange={(e) => handleGehuchtenChange(e.target.value)}
+                  className="border-beige text-sage-dark focus:border-sage focus:ring-sage"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="border-beige bg-white">
-          <CardContent className="p-4">
-            <div className="space-y-4">
-              <div 
-                ref={mapRef}
-                className="h-[600px] bg-sage-lightest rounded-lg border border-sage-light"
-                style={{ minHeight: '600px' }}
-              />
-              
-              {waypoints.length > 0 && (
-                <div className="bg-white rounded-lg p-4 border border-sage-light">
-                  <h4 className="font-semibold text-sage-dark mb-2">Waypoints ({waypoints.length}):</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-sm max-h-40 overflow-y-auto">
-                    {waypoints.map((coord, index) => (
-                      <div key={index} className="text-sage bg-sage-lightest rounded px-2 py-1">
-                        {index === 0 ? '🟢 START' : index === waypoints.length - 1 ? '🔴 EINDE' : `📍 Punt ${index + 1}`}: {coord[0].toFixed(4)}, {coord[1].toFixed(4)}
-                      </div>
-                    ))}
-                  </div>
-                  {routeCoordinates.length > 0 && (
-                    <p className="text-xs text-sage mt-2">Route bevat {routeCoordinates.length} gedetailleerde punten</p>
-                  )}
-                </div>
-              )}
+          <Card className="border-2 border-beige bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sage-dark">Route Tekenen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div id="map" ref={mapRef} className="w-full h-[400px] rounded-md border border-beige"></div>
+              <p className="text-sm text-gray-500 mt-2">
+                Gebruik de tekentools op de kaart om de route te tekenen of te bewerken.
+              </p>
+            </CardContent>
+          </Card>
 
-              {routeCoordinates.length > 0 && waypoints.length === 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
-                  <p className="font-medium mb-2">✅ Bestaande Route Geladen</p>
-                  <p>Route bevat {routeCoordinates.length} punten over {totalDistance} km</p>
-                  <p>Klik "Nieuwe Route Tekenen" om een nieuwe route te maken.</p>
-                </div>
-              )}
-
-              {waypoints.length === 0 && routeCoordinates.length === 0 && (
-                <div className="text-center py-8 bg-sage-lightest/50 rounded-lg">
-                  <p className="text-sage-dark text-lg mb-4">
-                    {isDrawing ? 'Dubbelklik op de kaart om je eerste punt toe te voegen' : 'Klik "Nieuwe Route Tekenen" om te beginnen'}
-                  </p>
-                  <p className="text-sage text-sm">
-                    Voor korte afstanden (&lt; 50m) wordt een directe route gebruikt.
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="lg:col-span-2 flex justify-end">
+            <Button type="submit" className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base">
+              {isNewRoute ? 'Route Aanmaken' : 'Route Opslaan'}
+            </Button>
+          </div>
+        </form>
+      </main>
     </div>
   )
 }
