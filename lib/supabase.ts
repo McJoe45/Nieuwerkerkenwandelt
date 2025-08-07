@@ -1,58 +1,21 @@
-"use client"
+"use client" // Mark this file as a client-side module
 
 import { createClient as createBrowserClient } from '@supabase/supabase-js'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // This error will now only trigger if the environment variables are truly missing,
-  // not if they contain placeholder strings from a .env.local file.
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.')
-}
-
-// This client is intended for Server Components, Server Actions, and Route Handlers
-export function createClient() {
-  const cookieStore = cookies()
-
-  return createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // The `cookies().set()` method can only be called from a Server Component or Server Action.
-            // This error is typically fixed by calling `cookies().set()` inside a Server Action.
-            // For more information, see https://nextjs.org/docs/app/api-reference/functions/cookies#cookiessetname-value-options
-            console.warn('Cookie set failed:', error);
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `cookies().set()` method can only be called from a Server Component or Server Action.
-            // This error is typically fixed by calling `cookies().set()` inside a Server Action.
-            // For more information, see https://nextjs.org/docs/app/api-reference/functions/cookies#cookiessetname-value-options
-            console.warn('Cookie remove failed:', error);
-          }
-        },
-      },
-    }
-  )
 }
 
 // This client is intended for Client Components
 export function createBrowserSupabaseClient() {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  // Use a singleton pattern to ensure only one client instance is created
+  if (!(globalThis as any).supabaseBrowserClient) {
+    (globalThis as any).supabaseBrowserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  }
+  return (globalThis as any).supabaseBrowserClient
 }
 
 export interface Route {
@@ -70,10 +33,10 @@ export interface Route {
   updated_at?: string
 }
 
-// Routes functions
+// Routes functions (using the browser client)
 export async function getRoutes(): Promise<Route[]> {
   try {
-    const supabase = createBrowserSupabaseClient() // Use browser client for client-side fetching
+    const supabase = createBrowserSupabaseClient()
     const { data, error } = await supabase
       .from('routes')
       .select('*')
