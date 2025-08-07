@@ -1,1 +1,1 @@
-routeplanner wandelen in Nieuwerkerken Aalst
+routeplanner wandelen in Nieuwerkerken
