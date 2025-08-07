@@ -161,13 +161,6 @@ export function login(username: string, password: string): boolean {
   return false
 }
 
-export function logout(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("isLoggedIn")
-    localStorage.removeItem("username")
-  }
-}
-
 export function isAuthenticated(): boolean {
   if (typeof window !== "undefined") {
     return localStorage.getItem("isLoggedIn") === "true"
