@@ -35,7 +35,7 @@ export default function Header() {
                 src="/images/nieuwerkerken-logo.png"
                 alt="Wapen van Nieuwerkerken"
                 className="object-contain transition-all duration-300 group-hover:drop-shadow-lg"
-                style={{ width: "40px", height: "40px" }}
+                style={{ width: "45px", height: "45px" }}
               />
             </div>
             <div className="flex items-center gap-1 sm:gap-2 min-w-0">
@@ -43,7 +43,7 @@ export default function Header() {
                 Nieuwerkerken
               </span>
               <span className="text-lg sm:text-2xl font-bold text-cream tracking-wide title-font flex-shrink-0">
-                wandelt
+                wandelt ook
               </span>
             </div>
           </Link>
