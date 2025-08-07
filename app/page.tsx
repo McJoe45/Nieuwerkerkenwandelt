@@ -83,7 +83,7 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="text-lg sm:text-xl text-sage max-w-2xl mx-auto leading-relaxed font-light">
-            Ontdek de routes die door echte lokale wandelaars werden samengesteld.
+            Ontdek het dorp, zijn gehuchten en de groen wandelpaden en steegjes.
           </p>
         </div>
 
