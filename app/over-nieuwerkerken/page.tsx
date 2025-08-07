@@ -76,7 +76,7 @@ const gehuchten = [
     id: 12,
     name: "Zurendries",
     description: "Wie de brug over de E40 oversteekt richting Aalst, komt op de Zurendries. Een weg met vaart, tot aan het Siesegemkruispunt. Hier staat geen kapel, maar wel het legendarische café Pros – beroemd geworden in de film De Helaasheid der Dingen.",
-    image: "/images/gehuchten/zurendries-landmark.png"
+    image: "/images/gehuchten/zurendries-landmark.jpg" // Updated to use the provided image
   },
   {
     id: 13,
@@ -153,7 +153,7 @@ export default function OverNieuwerkerkenPage() {
                   />
                 </div>
               )}
-              <CardHeader className="relative p-4"> {/* Adjusted padding here */}
+              <CardHeader className="relative p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 bg-sage-light rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
                     <span className="text-white font-bold text-lg">{gehucht.id}</span>
@@ -166,7 +166,7 @@ export default function OverNieuwerkerkenPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-4 pt-0"> {/* Adjusted padding here */}
+              <CardContent className="p-4 pt-0">
                 <p className="text-sage text-sm leading-relaxed font-light">
                   {gehucht.description}
                 </p>

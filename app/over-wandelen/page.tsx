@@ -31,41 +31,30 @@ export default function OverWandelenPage() {
           </h1>
         </div>
 
-        {/* Photo Placeholder */}
+        {/* Placeholder Image */}
         <div className="mb-16 flex justify-center">
-          <div className="relative w-full max-w-4xl">
-            <div className="w-full h-96 bg-sage-light/20 rounded-xl border-2 border-beige flex items-center justify-center">
-              <p className="text-sage text-lg">Foto wordt nog toegevoegd</p>
-            </div>
+          <div className="relative w-full max-w-3xl h-64 sm:h-80 md:h-96 bg-gray-200 rounded-xl flex items-center justify-center text-gray-500">
+            <Image
+              src="/placeholder.svg?height=384&width=768"
+              alt="Plaatsaanduiding voor wandelafbeelding"
+              fill
+              style={{ objectFit: 'cover' }}
+              className="rounded-xl"
+            />
           </div>
         </div>
 
-        {/* Content */}
-        <div className="max-w-4xl mx-auto">
-          <div className="prose prose-lg mx-auto text-center">
-            <div className="text-sage leading-relaxed space-y-6">
-              <p className="text-xl font-light">
-                Nieuwerkerken biedt een unieke wandelervaring door zijn diverse landschap van gehuchten, 
-                groene paden en historische plekken.
-              </p>
-              
-              <p>
-                Of je nu kiest voor een korte wandeling door het dorpscentrum of een langere tocht 
-                door de natuurgebieden, elke route toont je een ander gezicht van onze gemeente.
-              </p>
-              
-              <p>
-                De wandelpaden verbinden niet alleen plaatsen, maar ook verhalen. Van de stilte 
-                van de Kraaiwinkel tot de levendigheid van het dorpsplein, van de geschiedenis 
-                van kasteel Regelsbrugge tot de moderne windmolen in Hoezekouter.
-              </p>
-              
-              <p>
-                Neem de tijd om te genieten van wat Nieuwerkerken te bieden heeft. 
-                Elke stap is een ontdekking.
-              </p>
-            </div>
-          </div>
+        {/* Explanatory Text */}
+        <div className="max-w-3xl mx-auto text-center text-sage text-lg leading-relaxed font-light">
+          <p className="mb-4">
+            Nieuwerkerken, met zijn diverse landschappen en charmante gehuchten, biedt een unieke wandelervaring voor iedereen. Of je nu op zoek bent naar een korte, ontspannende wandeling door het dorp of een langere tocht door uitgestrekte velden en bossen, je vindt hier altijd een route die bij je past.
+          </p>
+          <p className="mb-4">
+            De wandelpaden zijn zorgvuldig uitgekozen om je de mooiste plekjes van de gemeente te laten ontdekken. Je wandelt langs historische bezienswaardigheden, door rustige natuurgebieden en langs pittoreske steegjes die je terug in de tijd voeren. Elk gehucht heeft zijn eigen karakter en verhaal, wat elke wandeling tot een nieuwe ontdekking maakt.
+          </p>
+          <p>
+            Vergeet niet comfortabele schoenen aan te trekken en te genieten van de rust en de natuur die Nieuwerkerken te bieden heeft. We hopen dat je een onvergetelijke tijd zult hebben op onze wandelpaden!
+          </p>
         </div>
       </main>
     </div>
