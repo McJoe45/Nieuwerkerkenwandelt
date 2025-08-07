@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import Header from "@/components/header"
+import Image from "next/image"
 
 export default function OverWandelenPage() {
   return (
@@ -30,37 +31,38 @@ export default function OverWandelenPage() {
           </h1>
         </div>
 
-        {/* Placeholder Image */}
+        {/* Photo Placeholder */}
         <div className="mb-16 flex justify-center">
-          <div className="relative w-full max-w-4xl h-96 bg-sage-light/20 rounded-xl border-2 border-beige flex items-center justify-center">
-            <p className="text-sage text-lg font-light">Foto wordt hier toegevoegd</p>
+          <div className="relative w-full max-w-4xl">
+            <div className="w-full h-96 bg-sage-light/20 rounded-xl border-2 border-beige flex items-center justify-center">
+              <p className="text-sage text-lg">Foto wordt nog toegevoegd</p>
+            </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="max-w-4xl mx-auto">
-          <div className="prose prose-lg max-w-none">
-            <div className="text-center space-y-6">
-              <p className="text-lg text-sage leading-relaxed font-light">
-                Nieuwerkerken biedt wandelaars een unieke ervaring door zijn diverse landschappen, 
-                van glooiende heuvels tot vredige valleien, doorsneden door historische paden en moderne wandelroutes.
+          <div className="prose prose-lg mx-auto text-center">
+            <div className="text-sage leading-relaxed space-y-6">
+              <p className="text-xl font-light">
+                Nieuwerkerken biedt een unieke wandelervaring door zijn diverse landschap van gehuchten, 
+                groene paden en historische plekken.
               </p>
               
-              <p className="text-lg text-sage leading-relaxed font-light">
-                Onze gemeente herbergt 15 verschillende gehuchten, elk met hun eigen karakter en charme. 
-                De wandelroutes verbinden deze gemeenschappen en tonen de rijke geschiedenis en natuurlijke schoonheid van onze streek.
+              <p>
+                Of je nu kiest voor een korte wandeling door het dorpscentrum of een langere tocht 
+                door de natuurgebieden, elke route toont je een ander gezicht van onze gemeente.
               </p>
               
-              <p className="text-lg text-sage leading-relaxed font-light">
-                Of je nu een ervaren wandelaar bent of gewoon op zoek bent naar een ontspannende wandeling, 
-                Nieuwerkerken heeft voor iedereen iets te bieden. Van korte gezinsvriendelijke routes tot uitdagende tochten 
-                door onze mooiste natuurgebieden.
+              <p>
+                De wandelpaden verbinden niet alleen plaatsen, maar ook verhalen. Van de stilte 
+                van de Kraaiwinkel tot de levendigheid van het dorpsplein, van de geschiedenis 
+                van kasteel Regelsbrugge tot de moderne windmolen in Hoezekouter.
               </p>
               
-              <p className="text-lg text-sage leading-relaxed font-light">
-                Alle routes zijn zorgvuldig samengesteld door lokale wandelaars die de streek door en door kennen. 
-                Ze leiden je langs de mooiste plekken, verborgen pareltjes en historische bezienswaardigheden 
-                die Nieuwerkerken zo bijzonder maken.
+              <p>
+                Neem de tijd om te genieten van wat Nieuwerkerken te bieden heeft. 
+                Elke stap is een ontdekking.
               </p>
             </div>
           </div>

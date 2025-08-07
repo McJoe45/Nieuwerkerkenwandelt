@@ -8,78 +8,78 @@ import Image from "next/image"
 const gehuchten = [
   {
     id: 1,
-    name: "Centrum Nieuwerkerken",
-    description: "Het historische hart van Nieuwerkerken met de kerk, het gemeentehuis en de karakteristieke dorpsplein."
+    name: "Rijdent",
+    description: "Wie via de Rijdentstraat richting Edixvelde wandelt, steekt eerst de spoorlijn Oostende-Brussel over via een kleine brug. Daar, te midden van het groen, bevind je je in het hart van Rijdent. Tussen de boomkruinen door duikt in de verte nog net de stompe toren van de dorpskerk op."
   },
   {
     id: 2,
-    name: "Kozen",
-    description: "Een rustig gehucht ten noorden van het centrum, bekend om zijn landelijke karakter en mooie natuur."
+    name: "Siesegemkouter",
+    description: "Een open vlakte, badend in rust. Al jaren lonkt de stad naar deze plek om te bouwen, maar wie van de Keizerstraat doorsteekt naar Aalst, begrijpt meteen wat hier echt thuishoort: stilte, groen en lucht. De Siesegemkouter is geen niemandsland, maar ieders landschap."
   },
   {
     id: 3,
-    name: "Binderveld",
-    description: "Een van de grootste gehuchten van Nieuwerkerken, met een rijke geschiedenis en prachtige wandelpaden."
+    name: "Laar",
+    description: "'Laar' – een geliefd woord onder puzzelaars. Centraal ligt de opvallende modernistische Sint-Rochuskapel, compleet met vlaggenstok en klok. Een klein monument, wat vervallen, maar fier in zijn eenvoud."
   },
   {
     id: 4,
-    name: "Wijer",
-    description: "Klein maar charmant gehucht met traditionele Vlaamse architectuur en groene omgeving."
+    name: "Kleinderbeek",
+    description: "Een vergeten stukje tussen dorp en snelweg. De straat Kleinderbeek houdt de naam levend. In het noorden, goed weggestopt, ligt het kerkhof."
   },
   {
     id: 5,
-    name: "Duras",
-    description: "Gelegen in het hart van de gemeente, bekend om zijn vredige sfeer en mooie landschappen."
+    name: "Dorp",
+    description: "Niet het centrum, maar wel het hart. Zelfs de straat heet hier 'Nieuwerkerken Dorp'. Onder het waakzame oog van de Onze-Lieve-Vrouw-Hemelvaartkerk vindt elke woensdagvoormiddag nog een markt plaats."
   },
   {
     id: 6,
-    name: "Neerlinter",
-    description: "Het zuidelijke gehucht van Nieuwerkerken, omgeven door velden en natuurgebieden."
+    name: "Kraaiwinkel",
+    description: "Groen, uitgestrekt, en gedeeld met Haaltert. Hier slingeren wandelwegen tussen bossen en velden. De Kraaiwinkel is het grootste natuurgebied van Nieuwerkerken – een plek waar stilte nog klinkt."
   },
   {
     id: 7,
-    name: "Overhespen",
-    description: "Een pittoresk gehucht in het westen, perfect voor rustige wandelingen door de natuur."
+    name: "Bremt",
+    description: "Langgerekt en licht glooiend, van de brug naar Mere tot diep in de Huystraat. Hier tref je veel groen én het hoogste punt van Nieuwerkerken – ergens rond huisnummer 2 van de Bremtstraat."
   },
   {
     id: 8,
-    name: "Nederhespen",
-    description: "Gelegen naast Overhespen, bekend om zijn landelijke charme en traditionele boerderijen."
+    name: "Edixvelde",
+    description: "Het meest zelfstandige gehucht, met een eigen kern, een kleuterschool en de markante Sint-Jozefskerk uit 1960. De losstaande klokkentoren maakt het plaatje compleet."
   },
   {
     id: 9,
-    name: "Roosbeek",
-    description: "Het noordwestelijke gehucht, omgeven door groene weiden en kleine bosjes."
+    name: "Maal",
+    description: "Ruim en groen. Maal verbindt je met de Siesegemkouter en de Erpekouter. In het midden van het gehucht staat de Sint-Annakapel. En een bushalte."
   },
   {
     id: 10,
-    name: "Neerwinden",
-    description: "Historisch belangrijk gehucht in het noordoosten, met interessante verhalen uit het verleden."
+    name: "Regelsbrugge",
+    description: "Hier ligt de grens met Aalst, bewaakt door het domein van kasteel Regelsbrugge. Ook de Odisee Hogeschool staat nog net op Nieuwerkerks grondgebied. Aan het einde van de dreef, bij het sluisje, stoppen de kasseien. De betonweg is Aalst – alles ervoor is van ons."
   },
   {
     id: 11,
-    name: "Oplinter",
-    description: "Een gehucht in het zuidwesten, bekend om zijn rustige straten en vriendelijke gemeenschap."
+    name: "Berg",
+    description: "Een naam die zichzelf bewijst. Via de Bergstraat klim je richting station van Ede. In het Spechtgat – de Spechtmeerstraat – loop je van Berg naar Bremt, waar hellingen en vergezichten elkaar afwisselen."
   },
   {
     id: 12,
-    name: "Wommersom",
-    description: "Gelegen in het oosten van de gemeente, omgeven door landbouwgronden en natuurgebieden."
+    name: "Zurendries",
+    description: "Wie de brug over de E40 oversteekt richting Aalst, komt op de Zurendries. Een weg met vaart, tot aan het Siesegemkruispunt. Hier staat geen kapel, maar wel het legendarische café Pros – beroemd geworden in de film De Helaasheid der Dingen."
   },
   {
     id: 13,
-    name: "Attenhoven",
-    description: "Een centraal gelegen gehucht met een mix van moderne voorzieningen en traditionele charme."
+    name: "Restert",
+    description: "Dicht bij het centrum en inmiddels stevig bebouwd. Maar wie doorloopt tot Restert 10, ontdekt een imposant hof met wortels in de 18e eeuw. Een stukje geschiedenis in een modern jasje."
   },
   {
     id: 14,
-    name: "Drieslinter",
-    description: "Het oostelijke gehucht, bekend om zijn mooie uitzichten en wandelmogelijkheden."
+    name: "Hoezekouterr",
+    description: "Misschien wel het minst betreden gehucht. Vroeger een open vlakte, nu met een reusachtige windmolen als baken. Voor velen een reden om om te keren, maar wie zoekt via nog wel het mooie voetpad naar de Restert."
   },
   {
     id: 15,
-    name: "Linter",
-    description: "Het zuidoostelijke gehucht, rijk aan geschiedenis en omgeven door prachtige natuur."
+    name: "Dries",
+    description: "De uitvalsweg naar Terjoden slingert via Dries. In de laatste bocht ligt de Mandjesvijver – het enige publiek toegankelijke plas water van Nieuwerkerken. Pootje baden is af te raden, maar de plek nodigt uit tot stilstand."
   }
 ]
 
