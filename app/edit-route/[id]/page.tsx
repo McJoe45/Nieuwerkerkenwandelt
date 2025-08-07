@@ -104,7 +104,7 @@ export default function EditRoutePage({ params }: { params: { id: string } }) {
 
       if (result) {
         setSuccess('Route succesvol bijgewerkt!')
-        router.push('/admin') // Redirect to admin page after successful update
+        router.push(`/route/${id}`) // Redirect to route detail page after successful update
       } else {
         setError('Fout bij het bijwerken van de route. Probeer opnieuw.')
       }
@@ -135,10 +135,10 @@ export default function EditRoutePage({ params }: { params: { id: string } }) {
       <main className="container mx-auto px-6 py-12">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-sage-dark title-font">Route Bewerken: {formData.name}</h1>
-          <Link href="/admin" passHref>
+          <Link href={`/route/${id}`} passHref>
             <Button variant="outline" className="border-sage text-sage hover:bg-sage-light hover:text-white">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Terug naar Admin
+              Terug naar Route
             </Button>
           </Link>
         </div>

@@ -76,7 +76,7 @@ const gehuchtenData = [
     id: 12,
     name: 'Zurendries',
     description: 'Wie de brug over de E40 oversteekt richting Aalst, komt op de Zurendries. Een weg met vaart, tot aan het Siesegemkruispunt. Hier staat geen kapel, maar wel het legendarische café Pros – beroemd geworden in de film De Helaasheid der Dingen.',
-    image: '/images/gehuchten/zurendries-landmark.jpg', // Specifieke afbeelding voor Zurendries
+    image: '/images/gehuchten/zurendries-landmark.png', // Specifieke afbeelding voor Zurendries
   },
   {
     id: 13,
@@ -114,7 +114,7 @@ export default function OverNieuwerkerkenPage() {
 
         <div className="mb-12 flex justify-center">
           <Image
-            src="/images/nieuwerkerken-gehuchten-map.jpg"
+            src="/images/nieuwerkerken-gehuchten-map.png"
             alt="Kaart van Nieuwerkerken met gehuchten"
             width={800}
             height={600}

@@ -53,3 +53,38 @@ Dit is een Next.js applicatie voor het beheren en weergeven van wandelroutes in 
 
 4.  **Omgevingsvariabelen:**
     -   Maak een `.env.local` bestand aan in de root van je project en voeg de volgende variabelen toe:
+\`\`\`
+NEXT_PUBLIC_SUPABASE_URL="https://[YOUR_SUPABASE_PROJECT_REF].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="[YOUR_SUPABASE_ANON_KEY]"
+\`\`\`
+
+5.  **Start de ontwikkelserver:**
+    \`\`\`bash
+    npm run dev
+    # of
+    yarn dev
+    \`\`\`
+
+    De applicatie is nu beschikbaar op `http://localhost:3000`.
+
+## Gebruik
+
+-   **Hoofdpagina (`/`)**: Toont een overzicht van alle wandelroutes.
+-   **Route Detail (`/route/[id]`)**: Toont de details van een specifieke route, inclusief een interactieve kaart.
+-   **Route Editor (`/route-editor/[id]`)**: Voor het bewerken van bestaande routes (vereist inloggen).
+-   **Route Aanmaken (`/create-route`)**: Voor het aanmaken van nieuwe routes (vereist inloggen).
+-   **Admin Paneel (`/admin`)**: Een eenvoudig admin paneel (vereist inloggen).
+-   **Login (`/login`)**: Inlogpagina voor beheerders.
+-   **Over Nieuwerkerken (`/over-nieuwerkerken`)**: Informatie over de gehuchten van Nieuwerkerken.
+-   **Over Wandelen (`/over-wandelen`)**: Algemene informatie over wandelen in Nieuwerkerken.
+
+## Authenticatie (Demo)
+
+Voor demo doeleinden is een eenvoudige lokale authenticatie geïmplementeerd:
+-   **Gebruikersnaam**: `admin`
+-   **Wachtwoord**: `wandelen123`
+
+**Let op**: Dit is *geen* veilige authenticatie voor productieomgevingen. Gebruik in een echte applicatie de ingebouwde authenticatie van Supabase of een andere robuuste oplossing.
+\`\`\`
+
+\`\`\`
