@@ -1,199 +1,186 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient } from '@/lib/supabase'
+import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { addRoute, isAuthenticated } from '@/lib/supabase'
 import Header from '@/components/header'
-import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
-// Fix for default Leaflet icon issue with Webpack
-delete (L.Icon.Default.prototype as any)._get='iconUrl';
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
-
-interface MapUpdaterProps {
-  center: L.LatLngExpression
-  zoom: number
-  polyline: L.LatLngExpression[]
-}
-
-function MapUpdater({ center, zoom, polyline }: MapUpdaterProps) {
-  const map = useMap()
-
-  useEffect(() => {
-    if (center) {
-      map.setView(center, zoom)
-    }
-    if (polyline && polyline.length > 0) {
-      const bounds = L.latLngBounds(polyline)
-      map.fitBounds(bounds, { padding: [50, 50] })
-    }
-  }, [map, center, zoom, polyline])
-
-  return null
+interface RouteFormData {
+  name: string
+  gehuchten: string
+  distance: number
+  muddy: boolean
+  description: string
+  coordinates: [number, number][]
+  difficulty: string
+  duration: string
+  highlights: string
 }
 
 export default function CreateRoutePage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [formData, setFormData] = useState<RouteFormData>({
+    name: '',
+    gehuchten: '',
+    distance: 0,
+    muddy: false,
+    description: '',
+    coordinates: [],
+    difficulty: 'Gemakkelijk',
+    duration: '',
+    highlights: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [distance, setDistance] = useState(0)
-  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number }[]>([])
-  const [saving, setSaving] = useState(false)
-
-  const calculateDistance = useCallback((coords: { lat: number; lng: number }[]) => {
-    let totalDistance = 0
-    for (let i = 0; i < coords.length - 1; i++) {
-      const p1 = L.latLng(coords[i].lat, coords[i].lng)
-      const p2 = L.latLng(coords[i + 1].lat, coords[i + 1].lng)
-      totalDistance += p1.distanceTo(p2)
-    }
-    return totalDistance / 1000 // Convert meters to kilometers
-  }, [])
-
-  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
-    const newCoordinates = [...coordinates, e.latlng]
-    setCoordinates(newCoordinates)
-    setDistance(calculateDistance(newCoordinates))
-  }, [coordinates, calculateDistance])
-
-  const handleSave = async () => {
-    setSaving(true)
-    const { data, error } = await supabase
-      .from('routes')
-      .insert([{ name, description, distance, coordinates }])
-      .select()
-
-    if (error) {
-      console.error('Error saving route:', error)
-      alert('Fout bij het opslaan van de route.')
-    } else {
-      alert('Route succesvol opgeslagen!')
-      router.push(`/route/${data[0].id}`) // Navigate to the new route's detail page
-    }
-    setSaving(false)
+  if (typeof window !== 'undefined' && !isAuthenticated()) {
+    router.push('/login')
+    return null
   }
 
-  const polylinePath = coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[]
-  const mapCenter: L.LatLngExpression = coordinates.length > 0 ? coordinates[0] : [50.93, 3.98] // Default to Nieuwerkerken if no coords
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value, type, checked } = e.target as HTMLInputElement
+    setFormData((prev) => ({
+      ...prev,
+      [id]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const handleSelectChange = (id: keyof RouteFormData, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [id]: value,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const newRoute = {
+        name: formData.name,
+        gehuchten: formData.gehuchten.split(',').map((g) => g.trim()).filter(Boolean),
+        distance: parseFloat(formData.distance.toString()),
+        muddy: formData.muddy,
+        description: formData.description,
+        coordinates: formData.coordinates, // Assuming coordinates are handled elsewhere or are empty for now
+        difficulty: formData.difficulty,
+        duration: formData.duration,
+        highlights: formData.highlights.split(',').map((h) => h.trim()).filter(Boolean),
+      }
+
+      const result = await addRoute(newRoute)
+
+      if (result) {
+        setSuccess('Route succesvol aangemaakt!')
+        setFormData({
+          name: '',
+          gehuchten: '',
+          distance: 0,
+          muddy: false,
+          description: '',
+          coordinates: [],
+          difficulty: 'Gemakkelijk',
+          duration: '',
+          highlights: '',
+        })
+        router.push('/admin') // Redirect to admin page after successful creation
+      } else {
+        setError('Fout bij het aanmaken van de route. Probeer opnieuw.')
+      }
+    } catch (err) {
+      console.error('Error creating route:', err)
+      setError('Er is een onverwachte fout opgetreden.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col">
+    <div className="min-h-screen bg-cream">
       <Header />
-      <main className="flex-1 container mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="lg:col-span-1">
-          <Card className="bg-white shadow-lg border-2 border-beige h-full flex flex-col">
-            <CardHeader>
-              <div className="flex items-center justify-between mb-4">
-                <Link href="/admin">
-                  <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Terug naar Admin
-                  </Button>
-                </Link>
-                <CardTitle className="text-sage-dark text-2xl">Nieuwe Route Aanmaken</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col space-y-6">
-              <div>
-                <Label htmlFor="name" className="text-sage-dark">Naam</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description" className="text-sage-dark">Beschrijving</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={5}
-                  className="mt-1 border-beige focus:border-sage-light focus:ring-sage-light text-sage-dark"
-                />
-              </div>
-              <div>
-                <Label htmlFor="distance" className="text-sage-dark">Afstand (km)</Label>
-                <Input
-                  id="distance"
-                  type="number"
-                  value={distance.toFixed(2)}
-                  readOnly
-                  className="mt-1 border-beige bg-gray-50 text-sage-dark"
-                />
-              </div>
-              <div className="flex-1 flex items-end justify-end">
-                <Button
-                  onClick={handleSave}
-                  disabled={saving || !name || coordinates.length < 2}
-                  className="bg-sage hover:bg-sage-dark text-white font-semibold py-3 px-6 rounded-full shadow-md transition-all duration-300 text-base"
-                >
-                  {saving ? 'Opslaan...' : 'Route Aanmaken'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+      <main className="container mx-auto px-6 py-12">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-sage-dark title-font">Nieuwe Route Aanmaken</h1>
+          <Link href="/admin" passHref>
+            <Button variant="outline" className="border-sage text-sage hover:bg-sage-light hover:text-white">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Terug naar Admin
+            </Button>
+          </Link>
         </div>
 
-        <div className="lg:col-span-1">
-          <Card className="bg-white shadow-lg border-2 border-beige h-full">
-            <CardHeader>
-              <CardTitle className="text-sage-dark text-2xl">Kaart Tekenen</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[500px] w-full">
-              <MapContainer
-                center={mapCenter}
-                zoom={13}
-                scrollWheelZoom={true}
-                className="h-full w-full rounded-lg shadow-inner"
-                whenCreated={map => {
-                  map.on('click', handleMapClick);
-                }}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                {polylinePath.length > 0 && (
-                  <>
-                    <Polyline positions={polylinePath} color="#6B8E23" weight={5} />
-                    {polylinePath.map((pos, index) => (
-                      <Marker key={index} position={pos} />
-                    ))}
-                  </>
-                )}
-                <MapUpdater center={mapCenter} zoom={13} polyline={polylinePath} />
-              </MapContainer>
-              <p className="text-sage text-sm mt-4">Klik op de kaart om punten toe te voegen. De afstand wordt automatisch berekend.</p>
-              <Button
-                onClick={() => {
-                  setCoordinates([]);
-                  setDistance(0);
-                }}
-                variant="destructive"
-                className="mt-4"
-              >
-                Wis alle punten
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md max-w-2xl mx-auto">
+          {error && <p className="text-red-500 mb-4">{error}</p>}
+          {success && <p className="text-green-500 mb-4">{success}</p>}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <Label htmlFor="name" className="text-sage-dark">Naam Route</Label>
+              <Input id="name" value={formData.name} onChange={handleChange} required className="border-beige focus:border-sage" />
+            </div>
+            <div>
+              <Label htmlFor="distance" className="text-sage-dark">Afstand (km)</Label>
+              <Input id="distance" type="number" step="0.1" value={formData.distance} onChange={handleChange} required className="border-beige focus:border-sage" />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <Label htmlFor="gehuchten" className="text-sage-dark">Gehuchten (komma-gescheiden)</Label>
+            <Input id="gehuchten" value={formData.gehuchten} onChange={handleChange} placeholder="bv. Dorp, Laar, Bremt" className="border-beige focus:border-sage" />
+          </div>
+
+          <div className="mb-6">
+            <Label htmlFor="description" className="text-sage-dark">Beschrijving</Label>
+            <Textarea id="description" value={formData.description} onChange={handleChange} rows={5} required className="border-beige focus:border-sage" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <Label htmlFor="difficulty" className="text-sage-dark">Moeilijkheidsgraad</Label>
+              <Select value={formData.difficulty} onValueChange={(value) => handleSelectChange('difficulty', value)}>
+                <SelectTrigger className="w-full border-beige focus:border-sage">
+                  <SelectValue placeholder="Selecteer moeilijkheidsgraad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Gemakkelijk">Gemakkelijk</SelectItem>
+                  <SelectItem value="Matig">Matig</SelectItem>
+                  <SelectItem value="Moeilijk">Moeilijk</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="duration" className="text-sage-dark">Duur (bv. 1u 30min)</Label>
+              <Input id="duration" value={formData.duration} onChange={handleChange} className="border-beige focus:border-sage" />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <Label htmlFor="highlights" className="text-sage-dark">Highlights (komma-gescheiden)</Label>
+            <Input id="highlights" value={formData.highlights} onChange={handleChange} placeholder="bv. Kapel, Bos, Rivier" className="border-beige focus:border-sage" />
+          </div>
+
+          <div className="flex items-center space-x-2 mb-8">
+            <Checkbox id="muddy" checked={formData.muddy} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, muddy: checked as boolean }))} />
+            <Label htmlFor="muddy" className="text-sage-dark">Modderpaden aanwezig</Label>
+          </div>
+
+          <Button type="submit" className="w-full bg-sage hover:bg-sage-dark text-white" disabled={loading}>
+            {loading ? 'Aanmaken...' : 'Route Aanmaken'}
+          </Button>
+        </form>
       </main>
     </div>
   )

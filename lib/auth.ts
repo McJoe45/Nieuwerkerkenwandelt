@@ -79,37 +79,8 @@ const DEMO_ROUTES: Route[] = [
   },
 ]
 
-export function login(username: string, password: string): boolean {
-  if (username === DEMO_USER.username && password === DEMO_USER.password) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("username", username)
-    }
-    return true
-  }
-  return false
-}
-
-export function logout(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("isLoggedIn")
-    localStorage.removeItem("username")
-  }
-}
-
-export function isAuthenticated(): boolean {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("isLoggedIn") === "true"
-  }
-  return false
-}
-
-export function getCurrentUser(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("username") || ""
-  }
-  return ""
-}
+// This file is deprecated and no longer used.
+// Authentication is now handled via lib/supabase.ts
 
 export function getRoutes(): Route[] {
   if (typeof window !== "undefined") {
@@ -154,19 +125,5 @@ export function deleteRoute(id: string): void {
     const routes = getRoutes()
     const filteredRoutes = routes.filter((route) => route.id !== id)
     localStorage.setItem("routes", JSON.stringify(filteredRoutes))
-  }
-}
-
-export async function getUser() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
-}
-
-export async function signOut() {
-  const supabase = createClient()
-  const { error } = await supabase.auth.signOut()
-  if (error) {
-    console.error('Error signing out:', error.message)
   }
 }

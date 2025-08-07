@@ -47,13 +47,15 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Custom colors for Nieuwerkerken Wandelt
-        'sage-dark': '#4A6B3C', // Dark green
-        'sage': '#6B8E23',     // Medium green
-        'sage-light': '#9ACD32', // Light green
-        'sage-lighter': '#C0D9AF', // Very light green
-        'cream': '#F5F5DC',    // Creamy background
-        'beige': '#D4C7B0',    // Beige for borders/accents
+        // Custom colors
+        cream: "hsl(var(--cream))",
+        beige: "hsl(var(--beige))",
+        sage: {
+          DEFAULT: "hsl(var(--sage))",
+          light: "hsl(var(--sage-light))",
+          lighter: "hsl(var(--sage-lighter))",
+          dark: "hsl(var(--sage-dark))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -73,9 +75,6 @@ const config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-      },
-      fontFamily: {
-        'title-font': ['"Your Title Font"', 'sans-serif'], // Placeholder for a custom title font
       },
     },
   },

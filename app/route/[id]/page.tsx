@@ -1,190 +1,229 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Header from '@/components/header'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Ruler, Pencil } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
-
-// Fix for default Leaflet icon issue with Webpack
-delete (L.Icon.Default.prototype as any)._get='iconUrl';
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { MapPin, Ruler, Droplets, Clock, TrendingUp, ArrowLeft, Map } from 'lucide-react'
+import Header from '@/components/header'
+import { getRouteById, deleteRoute, isAuthenticated } from '@/lib/supabase'
 
 interface Route {
   id: string
   name: string
-  description: string
+  gehuchten: string[]
   distance: number
-  coordinates: { lat: number; lng: number }[]
-  created_at: string
-}
-
-interface MapUpdaterProps {
-  center: L.LatLngExpression
-  zoom: number
-  polyline: L.LatLngExpression[]
-}
-
-function MapUpdater({ center, zoom, polyline }: MapUpdaterProps) {
-  const map = useMap()
-
-  useEffect(() => {
-    if (center) {
-      map.setView(center, zoom)
-    }
-    if (polyline && polyline.length > 0) {
-      const bounds = L.latLngBounds(polyline)
-      map.fitBounds(bounds, { padding: [50, 50] })
-    }
-  }, [map, center, zoom, polyline])
-
-  return null
+  muddy: boolean
+  description: string
+  coordinates: [number, number][]
+  difficulty: string
+  duration: string
+  highlights: string[]
 }
 
 export default function RouteDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
   const [route, setRoute] = useState<Route | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [error, setError] = useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const router = useRouter()
 
-  const fetchRoute = useCallback(async () => {
+  const loadRoute = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('routes')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      console.error('Error fetching route:', error)
-      setRoute(null)
-    } else if (data) {
-      setRoute(data)
+    setError(null)
+    try {
+      const routeData = await getRouteById(id)
+      if (routeData) {
+        setRoute(routeData)
+      } else {
+        setError('Route niet gevonden.')
+      }
+    } catch (err) {
+      console.error('Fout bij het laden van de route:', err)
+      setError('Fout bij het laden van de route.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [id, supabase])
+  }
 
   useEffect(() => {
-    fetchRoute()
+    setIsLoggedIn(isAuthenticated())
+    loadRoute()
 
-    // Re-fetch when window gains focus (e.g., returning from another tab)
-    const handleFocus = () => {
-      fetchRoute()
-    }
-    window.addEventListener('focus', handleFocus)
+    // Re-fetch data when the window gains focus
+    window.addEventListener('focus', loadRoute)
 
     return () => {
-      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('focus', loadRoute)
     }
-  }, [fetchRoute])
+  }, [id])
+
+  const handleDelete = async () => {
+    if (window.confirm('Weet je zeker dat je deze route wilt verwijderen?')) {
+      const success = await deleteRoute(id)
+      if (success) {
+        router.push('/admin') // Redirect to admin page after deletion
+      } else {
+        alert('Fout bij het verwijderen van de route.')
+      }
+    }
+  }
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'Gemakkelijk':
+        return 'bg-green-100 text-green-800 border-green-200'
+      case 'Matig':
+        return 'bg-amber-100 text-amber-800 border-amber-200'
+      case 'Moeilijk':
+        return 'bg-red-100 text-red-800 border-red-200'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cream">
-        <p className="text-sage-dark">Laden...</p>
+      <div className="min-h-screen bg-cream">
+        <Header />
+        <main className="container mx-auto px-6 py-12">
+          <div className="text-center">
+            <p className="text-sage">Route laden...</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Header />
+        <main className="container mx-auto px-6 py-12">
+          <div className="text-center text-red-500">
+            <p>{error}</p>
+            <Link href="/" passHref>
+              <Button className="mt-4 bg-sage hover:bg-sage-dark text-white">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Terug naar overzicht
+              </Button>
+            </Link>
+          </div>
+        </main>
       </div>
     )
   }
 
   if (!route) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-cream p-6">
+      <div className="min-h-screen bg-cream">
         <Header />
-        <Card className="w-full max-w-md bg-white shadow-lg border-2 border-beige">
-          <CardHeader>
-            <CardTitle className="text-sage-dark text-2xl">Route niet gevonden</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sage mb-4">De gevraagde route kon niet worden geladen.</p>
-            <Link href="/">
-              <Button className="bg-sage hover:bg-sage-dark text-white">Terug naar overzicht</Button>
+        <main className="container mx-auto px-6 py-12">
+          <div className="text-center text-sage">
+            <p>Geen routegegevens beschikbaar.</p>
+            <Link href="/" passHref>
+              <Button className="mt-4 bg-sage hover:bg-sage-dark text-white">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Terug naar overzicht
+              </Button>
             </Link>
-          </CardContent>
-        </Card>
+          </div>
+        </main>
       </div>
     )
   }
 
-  const polylinePath = route.coordinates ? route.coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[] : []
-  const mapCenter: L.LatLngExpression = polylinePath.length > 0 ? polylinePath[0] : [50.93, 3.98] // Default to Nieuwerkerken if no coords
-
   return (
-    <div className="min-h-screen bg-cream flex flex-col">
+    <div className="min-h-screen bg-cream">
       <Header />
-      <main className="flex-1 container mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="lg:col-span-1">
-          <Card className="bg-white shadow-lg border-2 border-beige h-full flex flex-col">
-            <CardHeader>
-              <div className="flex items-center justify-between mb-4">
-                <Link href="/">
-                  <Button variant="outline" className="border-sage-light text-sage hover:bg-sage-light hover:text-white">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Terug naar overzicht
+      <main className="container mx-auto px-6 py-12">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-sage-dark title-font">{route.name}</h1>
+          <div className="flex gap-4">
+            <Link href="/" passHref>
+              <Button variant="outline" className="border-sage text-sage hover:bg-sage-light hover:text-white">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Terug naar overzicht
+              </Button>
+            </Link>
+            {isLoggedIn && (
+              <>
+                <Link href={`/edit-route/${route.id}`} passHref>
+                  <Button className="bg-sage hover:bg-sage-dark text-white">
+                    Route Bewerken
                   </Button>
                 </Link>
-                <Link href={`/route-editor/${route.id}`}>
-                  <Button className="bg-sage hover:bg-sage-dark text-white font-semibold py-2 px-4 rounded-full shadow-md transition-all duration-300 text-sm">
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Bewerken
-                  </Button>
-                </Link>
-              </div>
-              <CardTitle className="text-sage-dark text-3xl mb-2 title-font">{route.name}</CardTitle>
-              <div className="flex items-center text-sage-dark text-base font-medium">
-                <Ruler className="w-4 h-4 mr-2 text-sage-light" />
-                <span>{route.distance ? `${route.distance.toFixed(2)} km` : 'N/A km'}</span>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              <p className="text-sage text-base leading-relaxed font-light mb-6 flex-1">
-                {route.description}
-              </p>
-              <div className="text-sm text-gray-500 mt-auto">
-                Aangemaakt op: {new Date(route.created_at).toLocaleDateString()}
-              </div>
-            </CardContent>
-          </Card>
+                <Button variant="destructive" onClick={handleDelete}>
+                  Route Verwijderen
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="lg:col-span-1">
-          <Card className="bg-white shadow-lg border-2 border-beige h-full">
-            <CardHeader>
-              <CardTitle className="text-sage-dark text-2xl">Route Kaart</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[500px] w-full">
-              <MapContainer
-                center={mapCenter}
-                zoom={13}
-                scrollWheelZoom={true}
-                className="h-full w-full rounded-lg shadow-inner"
-                key={route.id} // Force re-render map when route changes
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                {polylinePath.length > 0 && (
-                  <>
-                    <Polyline positions={polylinePath} color="#6B8E23" weight={5} />
-                    {polylinePath.map((pos, index) => (
-                      <Marker key={index} position={pos} />
-                    ))}
-                  </>
-                )}
-                <MapUpdater center={mapCenter} zoom={13} polyline={polylinePath} />
-              </MapContainer>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="border-2 border-beige bg-white shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-sage-dark text-2xl title-font">{route.name}</CardTitle>
+            <CardDescription className="text-sage text-base font-light">
+              {route.gehuchten.join(" • ")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-2 text-sage-dark">
+                <Ruler className="w-5 h-5 text-sage-light" />
+                <span className="font-semibold">{route.distance} km</span>
+              </div>
+              {route.duration && (
+                <div className="flex items-center gap-2 text-sage-dark">
+                  <Clock className="w-5 h-5 text-sage-light" />
+                  <span className="text-base">{route.duration}</span>
+                </div>
+              )}
+              {route.difficulty && (
+                <div className="flex items-center gap-2 text-sage-dark">
+                  <TrendingUp className="w-5 h-5 text-sage-light" />
+                  <Badge variant="outline" className={`${getDifficultyColor(route.difficulty)} border font-medium`}>
+                    {route.difficulty}
+                  </Badge>
+                </div>
+              )}
+              {route.muddy && (
+                <div className="flex items-center gap-2 text-sage-dark">
+                  <Droplets className="w-5 h-5 text-sage-light" />
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 font-medium">
+                    Modderpaden
+                  </Badge>
+                </div>
+              )}
+            </div>
+
+            <p className="text-sage text-base leading-relaxed">{route.description}</p>
+
+            {route.highlights && route.highlights.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-sage-dark mb-2">Highlights:</h3>
+                <ul className="list-disc list-inside text-sage text-base">
+                  {route.highlights.map((highlight, index) => (
+                    <li key={index}>{highlight}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="text-center mt-8">
+              <Link href={`/map/${route.id}`} passHref>
+                <Button className="bg-sage hover:bg-sage-dark text-white text-lg px-8 py-3 rounded-full shadow-md transition-all duration-300">
+                  <Map className="w-5 h-5 mr-2" />
+                  Bekijk op Kaart
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

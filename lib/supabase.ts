@@ -1,6 +1,6 @@
 "use client"
 
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createBrowserClient } from '@supabase/supabase-js'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -11,6 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.')
 }
 
+// This client is intended for Server Components, Server Actions, and Route Handlers
 export function createClient() {
   const cookieStore = cookies()
 
@@ -47,8 +48,9 @@ export function createClient() {
   )
 }
 
+// This client is intended for Client Components
 export function createBrowserSupabaseClient() {
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
 export interface Route {
@@ -69,7 +71,7 @@ export interface Route {
 // Routes functions
 export async function getRoutes(): Promise<Route[]> {
   try {
-    const supabase = createBrowserSupabaseClient()
+    const supabase = createBrowserSupabaseClient() // Use browser client for client-side fetching
     const { data, error } = await supabase
       .from('routes')
       .select('*')

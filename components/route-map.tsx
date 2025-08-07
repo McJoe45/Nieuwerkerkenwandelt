@@ -8,7 +8,8 @@ import { isAuthenticated } from "@/lib/supabase"
 import { ExternalLink, Edit } from 'lucide-react'
 
 // Fix for default Leaflet icon issue with Webpack
-delete (L.Icon.Default.prototype as any)._get='iconUrl';
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -16,36 +17,21 @@ L.Icon.Default.mergeOptions({
 });
 
 interface RouteMapProps {
-  coordinates: { lat: number; lng: number }[]
-  id: string // Unique ID to force re-render
-  routeName?: string
-  routeId?: string
-  editable?: boolean
-  onCoordinatesChange?: (coords: any) => void
-  className?: string
+  coordinates: [number, number][] // Array of [latitude, longitude] pairs
+  mapId: string // Unique ID for the map container
 }
 
-export default function RouteMap({ coordinates, id, routeName, routeId, editable = false, onCoordinatesChange, className = "h-96 w-full rounded-lg" }: RouteMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
+export default function RouteMap({ coordinates, mapId }: RouteMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null)
   const leafletMapRef = useRef<L.Map | null>(null)
   const polylineRef = useRef<L.Polyline | null>(null)
-  const markersRef = useRef<L.Marker[]>([])
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    setIsLoggedIn(isAuthenticated())
-  }, [])
+    if (!mapContainerRef.current) return
 
-  useEffect(() => {
-    if (!mapRef.current) return
-
+    // Initialize map if it doesn't exist
     if (!leafletMapRef.current) {
-      // Initialize map only once
-      leafletMapRef.current = L.map(mapRef.current, {
-        center: [50.93, 3.98], // Default center for Nieuwerkerken
-        zoom: 13,
-        scrollWheelZoom: true,
-      })
+      leafletMapRef.current = L.map(mapContainerRef.current).setView([50.93, 4.03], 13) // Default view for Nieuwerkerken
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -53,93 +39,51 @@ export default function RouteMap({ coordinates, id, routeName, routeId, editable
     }
 
     const map = leafletMapRef.current
-    const polylinePath = coordinates.map(coord => [coord.lat, coord.lng]) as L.LatLngExpression[]
 
     // Clear existing polyline and markers
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current)
     }
-    markersRef.current.forEach(marker => map.removeLayer(marker))
-    markersRef.current = []
+    map.eachLayer((layer) => {
+      if (layer instanceof L.Marker) {
+        map.removeLayer(layer)
+      }
+    })
 
-    if (polylinePath.length > 0) {
+    if (coordinates && coordinates.length > 0) {
+      const latlngs = coordinates.map(coord => [coord[0], coord[1]] as L.LatLngExpression)
+
       // Add new polyline
-      polylineRef.current = L.polyline(polylinePath, { color: '#6B8E23', weight: 5 }).addTo(map)
+      polylineRef.current = L.polyline(latlngs, { color: '#4CAF50', weight: 5 }).addTo(map)
 
-      // Add markers
-      polylinePath.forEach((pos, index) => {
-        const marker = L.marker(pos).addTo(map)
-        markersRef.current.push(marker)
-      })
+      // Fit map to polyline bounds
+      map.fitBounds(polylineRef.current.getBounds())
 
-      // Fit bounds to the polyline
-      const bounds = L.latLngBounds(polylinePath)
-      map.fitBounds(bounds, { padding: [50, 50] })
-    } else {
-      // If no coordinates, reset view to default center
-      map.setView([50.93, 3.98], 13)
+      // Add start and end markers
+      L.marker(latlngs[0]).addTo(map).bindPopup('Startpunt').openPopup()
+      L.marker(latlngs[latlngs.length - 1]).addTo(map).bindPopup('Eindpunt')
     }
+
+    // Invalidate map size to ensure it renders correctly, especially after container resize
+    map.invalidateSize()
 
     // Cleanup function
     return () => {
-      // No need to remove map, as it's managed by leafletMapRef.current
-      // Only clear layers if component unmounts or ID changes significantly
+      // No need to remove the map instance itself, as it's managed by the parent component's lifecycle
+      // We only clear layers to prepare for potential re-renders with new data
       if (polylineRef.current) {
         map.removeLayer(polylineRef.current)
         polylineRef.current = null
       }
-      markersRef.current.forEach(marker => map.removeLayer(marker))
-      markersRef.current = []
+      map.eachLayer((layer) => {
+        if (layer instanceof L.Marker) {
+          map.removeLayer(layer)
+        }
+      })
     }
-  }, [coordinates, id]) // Re-run effect if coordinates or id change
-
-  const openFullscreenMap = () => {
-    if (!routeId) return
-    const mapUrl = `/map/${routeId}`
-    window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
-  }
-
-  const openRouteEditor = () => {
-    if (!routeId) return
-    const editorUrl = `/route-editor/${routeId}`
-    window.open(editorUrl, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes')
-  }
+  }, [coordinates, mapId]) // Re-run effect if coordinates or mapId change
 
   return (
-    <div className="relative">
-      <div 
-        ref={mapRef} 
-        className={className}
-        style={{ height: "400px", width: "100%" }}
-      />
-      
-      {/* Controls based on mode */}
-      {routeId && (
-        <div className="mt-4 flex items-center justify-between">
-          {/* Regular mode: show fullscreen link */}
-          {!isLoggedIn && (
-            <button
-              onClick={openFullscreenMap}
-              className="text-sage hover:text-sage-light text-sm flex items-center gap-1 transition-colors"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Klik hier om de kaart in een eigen venster te openen
-            </button>
-          )}
-          
-          {/* Admin mode: show edit button */}
-          {isLoggedIn && (
-            <Button
-              onClick={openRouteEditor}
-              size="sm"
-              className="bg-sage-light hover:bg-sage-lighter text-white"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Route Bewerken
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
+    <div id={mapId} ref={mapContainerRef} className="w-full h-[500px] rounded-lg shadow-lg border-2 border-beige"></div>
   )
 }
